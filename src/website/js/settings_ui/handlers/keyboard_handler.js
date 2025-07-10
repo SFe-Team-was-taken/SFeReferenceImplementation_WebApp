@@ -24,6 +24,7 @@ export function _createKeyboardHandler(keyboard, synthui, renderer)
      * @type {{
      *     program: number,
      *     bank: number,
+     *     bankLSB: number,
      *     drum: boolean
      * }[]}
      */
@@ -34,6 +35,7 @@ export function _createKeyboardHandler(keyboard, synthui, renderer)
      *     presetName: string,
      *     program: number,
      *     bank: number
+     *     bankLSB: number,
      * }[]}
      */
     let presetList = undefined;
@@ -42,7 +44,8 @@ export function _createKeyboardHandler(keyboard, synthui, renderer)
     {
         const chan = channelTrackers[channel];
         let bank = chan.drum ? 128 : chan.bank;
-        let preset = presetList.find(p => p.bank === bank && p.program === chan.program);
+        let bankLSB = chan.bankLSB;
+        let preset = presetList.find(p => p.bank === bank && p.bankLSB === bankLSB && p.program === chan.program);
         if (!preset)
         {
             preset = presetList[0];
@@ -82,6 +85,7 @@ export function _createKeyboardHandler(keyboard, synthui, renderer)
         channelTrackers.push({
             program: 0,
             bank: 0,
+            bankLSB: 0,
             drum: channelNumber % 16 === 9
         });
         updateChannels();
@@ -113,6 +117,7 @@ export function _createKeyboardHandler(keyboard, synthui, renderer)
     {
         const c = channelTrackers[e.channel];
         c.bank = e.bank;
+        c.bankLSB = e.bankLSB;
         c.program = e.program;
         updateChannel(e.channel);
     });

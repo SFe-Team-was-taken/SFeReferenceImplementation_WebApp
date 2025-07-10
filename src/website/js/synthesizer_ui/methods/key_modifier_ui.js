@@ -40,7 +40,7 @@ async function getKey(locale, keyboard)
  * @param synth {Synthetizer}
  * @param locale {LocaleManager}
  * @param keyboard {MidiKeyboard}
- * @param presetList {{presetName: string, program: number, bank: number}[]}
+ * @param presetList {{presetName: string, program: number, bank: number, bankLSB: number}[]}
  */
 async function doModifyKey(synth, locale, keyboard, presetList)
 {
@@ -127,18 +127,21 @@ async function doModifyKey(synth, locale, keyboard, presetList)
                     const gain = parseFloat(n.div.querySelector("input[gain]").value) ?? 1;
                     const presetName = n.div.querySelector("select[preset-selector]").value;
                     let bank = -1;
+                    let bankLSB = -1;
                     let program = -1;
                     if (presetName !== "unchanged")
                     {
                         const preset = presetList.find(p => p.presetName === presetName);
                         bank = preset.bank;
+                        bankLSB = preset.bankLSB;
                         program = preset.program;
                     }
                     synth.keyModifierManager.addModifier(channel, key, {
                         velocity: velocity,
                         patch: {
                             program: program,
-                            bank: bank
+                            bank: bank,
+                            bankLSB: bankLSB
                         },
                         gain: gain
                     });
@@ -152,9 +155,10 @@ async function doModifyKey(synth, locale, keyboard, presetList)
     );
     const prog = mod?.patch?.program ?? -1;
     const bank = mod?.patch?.bank ?? -1;
-    if (bank !== -1 && prog !== -1)
+    const bankLSB = mod?.patch?.bank ?? -1;
+    if (bank !== -1 && bankLSB !== -1 && prog !== -1)
     {
-        n.div.querySelector("select[preset-selector]").value = presetList.find(p => p.bank === bank && p.program === prog).presetName;
+        n.div.querySelector("select[preset-selector]").value = presetList.find(p => p.bank === bank && p.bankLSB === bankLSB && p.program === prog).presetName;
     }
 }
 
@@ -215,7 +219,7 @@ async function doRemoveModification(synth, locale, keyboard)
  * @param synth {Synthetizer}
  * @param locale {LocaleManager}
  * @param keyboard {MidiKeyboard}
- * @param presetList {{presetName: string, program: number, bank: number}[]}
+ * @param presetList {{presetName: string, program: number, bank: number, bankLSB: number}[]}
  */
 export function startKeyModifiersMenu(synth, locale, keyboard, presetList)
 {

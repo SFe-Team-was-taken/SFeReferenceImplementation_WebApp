@@ -285,23 +285,13 @@ export function createChannelController(channelNumber)
         {
             const data = presetName.split(":");
             const bank = parseInt(data[0]);
+            const bankLSB = parseInt(data[1]);
             this.synth.lockController(channelNumber, ALL_CHANNELS_OR_DIFFERENT_ACTION, false);
-            if (isSystemXG(this.synth.midiSystem) && !isValidXGMSB(bank))
-            {
-                // msb 0
-                this.synth.controllerChange(channelNumber, midiControllers.bankSelect, 0);
-                // lsb actual
-                this.synth.controllerChange(
-                    channelNumber,
-                    midiControllers.lsbForControl0BankSelect,
-                    bank
-                );
-            }
-            else
-            {
-                this.synth.controllerChange(channelNumber, midiControllers.bankSelect, bank);
-            }
-            this.synth.programChange(channelNumber, parseInt(data[1]));
+
+            this.synth.controllerChange(channelNumber, midiControllers.bankSelect, bank);
+            this.synth.controllerChange(channelNumber, midiControllers.lsbForControl0BankSelect, bankLSB);
+
+            this.synth.programChange(channelNumber, parseInt(data[2]));
             if (this.onProgramChange)
             {
                 this.onProgramChange(channelNumber);
@@ -313,7 +303,9 @@ export function createChannelController(channelNumber)
     );
     controller.appendChild(presetSelector.mainButton);
     channelController.preset = presetSelector;
-    
+    console.log(channelController.preset);
+
+
     // solo button
     const soloButton = document.createElement("div");
     soloButton.innerHTML = getEmptyMicSvg(ICON_SIZE);

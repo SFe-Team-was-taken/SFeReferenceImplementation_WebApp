@@ -9,7 +9,7 @@ export function setEventListeners()
     this.synth.eventHandler.addEvent("programchange", "synthui-program-change", e =>
     {
         const p = this.controllers[e.channel].preset;
-        p.set(`${e.bank}:${e.program}`);
+        p.set(`${e.bank}:${e.bankLSB}:${e.program}`);
     });
     
     this.synth.eventHandler.addEvent("allcontrollerreset", "synthui-all-controller-reset", () =>

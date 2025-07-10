@@ -13,7 +13,7 @@ export class Selector
 {
     /**
      * Creates a new selector
-     * @param elements  {{name: string, program: number, bank: number}[]}
+     * @param elements  {{name: string, program: number, bank: number, bankLSB: number}[]}
      * @param locale {LocaleManager}
      * @param descriptionPath {string} locale path
      * @param descriptionArgs {string|number[]}
@@ -28,7 +28,7 @@ export class Selector
                 lockCallback = undefined)
     {
         /**
-         * @type {{name: string, program: number, bank: number, stringified: string}[]}
+         * @type {{name: string, program: number, bank: number, bankLSB: number, stringified: string}[]}
          */
         this.elements = elements.map(e =>
         {
@@ -36,7 +36,8 @@ export class Selector
                 name: e.name,
                 program: e.program,
                 bank: e.bank,
-                stringified: `${e.bank.toString().padStart(3, "0")}:${e.program.toString()
+                bankLSB: e.bankLSB,
+                stringified: `${e.bank.toString().padStart(3, "0")}:${e.bankLSB.toString().padStart(3, "0")}:${e.program.toString()
                     .padStart(
                         3,
                         "0"
@@ -45,7 +46,7 @@ export class Selector
         });
         if (this.elements.length > 0)
         {
-            this.value = `${this.elements[0].bank}:${this.elements[0].program}`;
+            this.value = `${this.elements[0].bank}:${this.elements[0].bankLSB}:${this.elements[0].program}`;
         }
         else
         {
@@ -187,8 +188,9 @@ export class Selector
                 // when enter pressed, select the selected preset
                 case "Enter":
                     const bank = selectedProgram.getAttribute("bank");
+                    const bankLSB = selectedProgram.getAttribute("bankLSB");
                     const program = selectedProgram.getAttribute("program");
-                    const newVal = `${bank}:${program}`;
+                    const newVal = `${bank}:${bankLSB}:${program}`;
                     if (this.value === newVal)
                     {
                         this.hideSelectionMenu();
@@ -253,7 +255,7 @@ export class Selector
     /**
      * Generates the instrument table for displaying
      * @param wrapper {Element} the wrapper
-     * @param elements {{name: string, program: number, bank: number}[]}
+     * @param elements {{name: string, program: number, bank: number, bankLSB: number}[]}
      */
     generateTable(wrapper, elements)
     {
@@ -261,7 +263,8 @@ export class Selector
         table.classList.add("voice_selector_table");
         
         const selectedBank = parseInt(this.value.split(":")[0]);
-        const selectedProgram = parseInt(this.value.split(":")[1]);
+        const selectedBankLSB = parseInt(this.value.split(":")[1]);
+        const selectedProgram = parseInt(this.value.split(":")[2]);
         
         let lastProgram = -20;
         for (const preset of elements)
@@ -271,8 +274,9 @@ export class Selector
             row.classList.add("voice_selector_option");
             row.setAttribute("program", program.toString());
             row.setAttribute("bank", preset.bank.toString());
+            row.setAttribute("bankLSB", preset.bankLSB.toString());
             
-            if (program === selectedProgram && preset.bank === selectedBank)
+            if (program === selectedProgram && preset.bank === selectedBank && preset.bankLSB === selectedBankLSB)
             {
                 row.classList.add("voice_selector_selected");
                 setTimeout(() =>
@@ -287,7 +291,7 @@ export class Selector
             
             row.onclick = () =>
             {
-                const newVal = `${preset.bank}:${program}`;
+                const newVal = `${preset.bank}:${preset.bankLSB}:${program}`;
                 if (this.value === newVal)
                 {
                     this.hideSelectionMenu();
@@ -316,6 +320,7 @@ export class Selector
             }
             const programText = `${preset.program.toString().padStart(3, "0")}`;
             const bankText = `${preset.bank.toString().padStart(3, "0")}`;
+            const bankLSBText = `${preset.bankLSB.toString().padStart(3, "0")}`;
             
             const presetName = document.createElement("td");
             presetName.classList.add("voice_selector_preset_name");
@@ -324,12 +329,17 @@ export class Selector
             const presetProgram = document.createElement("td");
             presetName.classList.add("voice_selector_preset_program");
             presetProgram.textContent = programText;
-            
+
+            const presetBankLSB = document.createElement("td");
+            presetName.classList.add("voice_selector_preset_program");
+            presetBankLSB.textContent = bankLSBText;
+
             const presetBank = document.createElement("td");
             presetName.classList.add("voice_selector_preset_program");
             presetBank.textContent = bankText;
             
             row.appendChild(presetBank);
+            row.appendChild(presetBankLSB);
             row.appendChild(presetProgram);
             row.appendChild(presetName);
             table.appendChild(row);
@@ -351,7 +361,7 @@ export class Selector
     }
     
     /**
-     * @param elements {{name: string, program: number, bank: number}[]}
+     * @param elements {{name: string, program: number, bank: number, bankLSB: number}[]}
      */
     reload(elements = this.elements)
     {
@@ -361,7 +371,8 @@ export class Selector
                 name: e.name,
                 program: e.program,
                 bank: e.bank,
-                stringified: `${e.bank.toString().padStart(3, "0")}:${e.program.toString()
+                bankLSB: e.bankLSB,
+                stringified: `${e.bank.toString().padStart(3, "0")}:${e.bankLSB.toString().padStart(3, "0")}:${e.program.toString()
                     .padStart(
                         3,
                         "0"
@@ -372,13 +383,14 @@ export class Selector
         {
             const firstEl = this.elements[0];
             const bank = firstEl.bank;
-            const currentProgram = parseInt(this.value.split(":")[1]);
+            const bankLSB = firstEl.bankLSB;
+            const currentProgram = parseInt(this.value.split(":")[2]);
             let program = currentProgram;
             if (this.elements.find(e => e.program === currentProgram) === undefined)
             {
                 program = firstEl.program;
             }
-            this.mainButton.textContent = this.getString(`${bank}:${program}`);
+            this.mainButton.textContent = this.getString(`${bank}:${bankLSB}:${program}`);
         }
     }
     
@@ -389,6 +401,7 @@ export class Selector
     {
         this.value = value;
         this.reload();
+
         this.mainButton.textContent = this.getString(this.value);
         
         if (this.isWindowShown)
@@ -405,7 +418,8 @@ export class Selector
             const table = this.selectionMenu.getElementsByClassName("voice_selector_table")[0];
             // find the newly selected class
             const selectedBank = parseInt(this.value.split(":")[0]);
-            const selectedProgram = parseInt(this.value.split(":")[1]);
+            const selectedBankLSB = parseInt(this.value.split(":")[1]);
+            const selectedProgram = parseInt(this.value.split(":")[2]);
             for (const row of table.rows)
             {
                 if (row.cells.length === 1)
@@ -413,8 +427,9 @@ export class Selector
                     continue;
                 }
                 const bank = parseInt(row.cells[0].textContent);
-                const program = parseInt(row.cells[1].textContent);
-                if (bank === selectedBank && program === selectedProgram)
+                const bankLSB = parseInt(row.cells[1].textContent);
+                const program = parseInt(row.cells[2].textContent);
+                if (bank === selectedBank && bankLSB === selectedBankLSB && program === selectedProgram)
                 {
                     row.classList.add("voice_selector_selected");
                     row.scrollIntoView({
@@ -436,8 +451,9 @@ export class Selector
     {
         const split = inputString.split(":");
         const bank = parseInt(split[0]);
-        const program = parseInt(split[1]);
-        const name = this.elements.find(e => e.bank === bank && e.program === program);
+        const bankLSB = parseInt(split[1]);
+        const program = parseInt(split[2]);
+        const name = this.elements.find(e => e.bank === bank && e.bankLSB === bankLSB && e.program === program);
         if (!name)
         {
             return "";
@@ -446,6 +462,6 @@ export class Selector
         {
             return `${program}. ${name.name}`;
         }
-        return `${bank}:${program} ${name.name}`;
+        return `${bank}:${bankLSB}:${program} ${name.name}`;
     }
 }

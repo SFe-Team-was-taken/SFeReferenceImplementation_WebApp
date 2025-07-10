@@ -13,9 +13,9 @@ import { ANIMATION_REFLOW_TIME } from "../utils/animation_utils.js";
 import { closeNotification } from "../notification/notification.js";
 import { midiControllers } from "spessasynth_core";
 
-export function isXGDrums(bankNr)
+export function isXGDrums(bankMSB)
 {
-    return bankNr === 120 || bankNr === 126 || bankNr === 127;
+    return bankMSB === 120 || bankMSB === 126 || bankMSB === 127;
 }
 
 
@@ -62,17 +62,17 @@ class SynthetizerUI
     showOnlyUsedEnabled = false;
     
     /**
-     * @type {{name: string, program: number, bank: number}[]}
+     * @type {{name: string, program: number, bank: number, bankLSB: number}[]}
      */
     instrumentList = [];
     
     /**
-     * @type {{name: string, program: number, bank: number}[]}
+     * @type {{name: string, program: number, bank: number, bankLSB: number}[]}
      */
     percussionList = [];
     
     /**
-     * @type {{presetName: string, program: number, bank: number}[]}
+     * @type {{presetName: string, program: number, bank: number, bankLSB: number}[]}
      */
     presetList = [];
     
@@ -257,17 +257,22 @@ class SynthetizerUI
     {
         this.synth.eventHandler.addEvent("presetlistchange", "synthui-preset-list-change", e =>
         {
+            // console.log(e);
             /**
-             * @type {{presetName: string, program: number, bank: number}[]}
+             * @type {{presetName: string, program: number, bank: number, bankLSB: number}[]}
              */
             const presetList = e;
             this.presetList = presetList;
-            this.instrumentList = presetList.filter(p => !isXGDrums(p.bank) && p.bank !== 128)
+            this.instrumentList = presetList.filter(p => !isXGDrums(p.bank) && p.bank < 128)
                 .sort((a, b) =>
                 {
-                    if (a.program === b.program)
+                    if (a.program === b.program && a.bankLSB === b.bankLSB)
                     {
                         return a.bank - b.bank;
+                    }
+                    if (a.program === b.program)
+                    {
+                        return a.bankLSB - b.bankLSB;
                     }
                     return a.program - b.program;
                 })
@@ -276,16 +281,29 @@ class SynthetizerUI
                     return {
                         name: p.presetName,
                         bank: p.bank,
+                        bankLSB: p.bankLSB,
                         program: p.program
                     };
                 });
-            this.percussionList = presetList.filter(p => isXGDrums(p.bank) || p.bank === 128)
-                .sort((a, b) => a.program - b.program)
+            this.percussionList = presetList.filter(p => isXGDrums(p.bank) || p.bank >= 128)
+                .sort((a, b) =>
+                {
+                    if (a.program === b.program && a.bankLSB === b.bankLSB)
+                    {
+                        return a.bank - b.bank;
+                    }
+                    if (a.program === b.program)
+                    {
+                        return a.bankLSB - b.bankLSB;
+                    }
+                    return a.program - b.program;
+                })
                 .map(p =>
                 {
                     return {
                         name: p.presetName,
                         bank: p.bank,
+                        bankLSB: p.bankLSB,
                         program: p.program
                     };
                 });
@@ -303,7 +321,7 @@ class SynthetizerUI
             {
                 const list = this.synth.channelProperties[i].isDrum ? this.percussionList : this.instrumentList;
                 controller.preset.reload(list);
-                controller.preset.set(`${list[0].bank}:${list[0].program}`);
+                controller.preset.set(`${list[0].bank}:${list[0].bankLSB}:${list[0].program}`);
             });
         });
     }
