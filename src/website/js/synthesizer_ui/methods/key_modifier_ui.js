@@ -1,5 +1,4 @@
 import { closeNotification, showNotification } from "../../notification/notification.js";
-import { Synthetizer } from "spessasynth_lib";
 import { KeyModifier } from "spessasynth_core";
 
 
@@ -37,7 +36,7 @@ async function getKey(locale, keyboard)
 }
 
 /**
- * @param synth {Synthetizer}
+ * @param synth {CustomSynth}
  * @param locale {LocaleManager}
  * @param keyboard {MidiKeyboard}
  * @param presetList {{presetName: string, program: number, bank: number, bankLSB: number}[]}
@@ -163,7 +162,7 @@ async function doModifyKey(synth, locale, keyboard, presetList)
 }
 
 /**
- * @param synth {Synthetizer}
+ * @param synth {CustomSynth}
  * @param locale {LocaleManager}
  * @param keyboard {MidiKeyboard}
  */
@@ -216,7 +215,7 @@ async function doRemoveModification(synth, locale, keyboard)
 }
 
 /**
- * @param synth {Synthetizer}
+ * @param synth {CustomSynth}
  * @param locale {LocaleManager}
  * @param keyboard {MidiKeyboard}
  * @param presetList {{presetName: string, program: number, bank: number, bankLSB: number}[]}
