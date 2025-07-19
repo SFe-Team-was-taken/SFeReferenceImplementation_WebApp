@@ -6,7 +6,7 @@ import JSZip from "jszip";
 
 export async function buildSpessaSynth()
 {
-    const REPO_ROOT = path.resolve(import.meta.dirname, "../..");
+    const REPO_ROOT = path.resolve("");
     
     const WEBSITE_DIR = path.resolve(REPO_ROOT, "src/website");
     const SOUNDFONT_NAME = "GeneralUserGS.sf3";
