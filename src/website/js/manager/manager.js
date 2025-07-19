@@ -451,6 +451,12 @@ class Manager
                 this.getDLS();
             }, 3000);
         }
+        
+        // resets controllers and resume
+        if (this.seq)
+        {
+            this.seq.currentTime -= 0.1;
+        }
     }
     
     /**
