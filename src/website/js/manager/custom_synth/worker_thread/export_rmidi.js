@@ -43,7 +43,7 @@ export async function exportRMIDI(compress, quality, metadata, adjust)
     /**
      * @type {BasicSoundBank}
      */
-    const font = fontBuffer instanceof ArrayBuffer ? loadSoundFont(fontBuffer) : fontBuffer;
+    const font = fontBuffer instanceof ArrayBuffer ? loadSoundFont(fontBuffer, true) : fontBuffer;
     
     if (adjust)
     {

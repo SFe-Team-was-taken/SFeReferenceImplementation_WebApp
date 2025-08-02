@@ -303,7 +303,6 @@ export function createChannelController(channelNumber)
     );
     controller.appendChild(presetSelector.mainButton);
     channelController.preset = presetSelector;
-    console.log(channelController.preset);
 
 
     // solo button

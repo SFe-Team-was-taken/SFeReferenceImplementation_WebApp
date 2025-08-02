@@ -458,7 +458,7 @@ export class Selector
         {
             if (this.elements.length < 1)
             {
-                return "-";
+                return "[No Preset]";
             }
             name = this.elements[0];
         }

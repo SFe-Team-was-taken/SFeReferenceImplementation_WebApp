@@ -301,7 +301,7 @@ class WorkerSynthEngine
                 break;
             
             case workerMessageType.initialSoundBank:
-                this.soundBank = loadSoundFont(data);
+                this.soundBank = loadSoundFont(data, true);
                 this.synthEngine.soundfontManager.addNewSoundFont(this.soundBank, "main", 0);
                 break;
             
