@@ -192,10 +192,6 @@ export class Selector {
         // Add basic key navigation
         searchInput.addEventListener("keydown", (e) => {
             switch (e.key) {
-                case "Escape":
-                    this.hideSelectionMenu();
-                    break;
-
                 // When enter pressed, select the selected preset
                 case "Enter":
                     const newVal = this.elementsToTable?.get(
@@ -282,14 +278,12 @@ export class Selector {
     }
 
     public reload(elements: PresetListEntry[] = this.elements) {
-        if (this.elements !== elements) {
-            this.elements = elements.map((e) => {
-                return {
-                    ...e,
-                    stringified: MIDIPatchTools.toNamedMIDIString(e)
-                };
-            });
-        }
+        this.elements = elements.map((e) => {
+            return {
+                ...e,
+                stringified: MIDIPatchTools.toNamedMIDIString(e)
+            };
+        });
         if (this.elements.length > 0) {
             const firstEl = this.elements[0];
             this.mainButton.textContent = this.getString(firstEl);
@@ -415,20 +409,13 @@ export class Selector {
                     table.appendChild(headerRow);
                 }
             }
-            const programText = preset.program.toString().padStart(3, "0");
-            const msbString = preset.bankMSB.toString().padStart(3, "0");
-            const lsbString = preset.bankLSB.toString().padStart(3, "0");
-            let bankLSBText: string, bankMSBText: string;
-            if (preset.isGMGSDrum) {
-                bankLSBText = "GS";
-                bankMSBText = "DRUM";
-            } else if (preset.isAnyDrums) {
-                bankLSBText = "XG";
-                bankMSBText = "DRUM";
-            } else {
-                bankMSBText = msbString;
-                bankLSBText = lsbString;
-            }
+            const programText = `${preset.program.toString().padStart(3, "0")}`;
+            const bankMSBText = preset.isGMGSDrum
+                ? ""
+                : `${preset.bankLSB.toString().padStart(3, "0")}`;
+            const bankLSBText = preset.isGMGSDrum
+                ? ""
+                : `${preset.bankMSB.toString().padStart(3, "0")}`;
 
             const presetName = document.createElement("td");
             presetName.classList.add("voice_selector_preset_name");
@@ -446,8 +433,8 @@ export class Selector {
             presetName.classList.add("voice_selector_preset_program");
             presetBankLSB.textContent = bankLSBText;
 
-            row.appendChild(presetBankLSB);
             row.appendChild(presetBankMSB);
+            row.appendChild(presetBankLSB);
             row.appendChild(presetProgram);
             row.appendChild(presetName);
             table.appendChild(row);

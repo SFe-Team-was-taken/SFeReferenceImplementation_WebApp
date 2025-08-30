@@ -123,8 +123,7 @@ export function _exportRMIDI(this: Manager) {
                 type: "toggle",
                 translatePathTitle: path + "adjust",
                 attributes: {
-                    name: "adjust",
-                    checked: "checked"
+                    name: "adjust"
                 }
             },
             {
