@@ -343,18 +343,24 @@ export class DialogueEvent {
             this.element.style.textDecoration = "line-through";
         }
 
+        let hasText = false;
         this.textChunks = [];
         for (const chunk of this.text) {
             if (!chunk.startsWith("{")) {
                 const span = document.createElement("span");
-                span.textContent = chunk
+                const outText = chunk
                     .replaceAll("\\N", "\n")
                     .replaceAll("\\h", " ")
                     .replaceAll("\\n", "\n");
+                span.textContent = outText;
+                hasText ||= /[a-zA-Z]/.test(outText);
                 span.style.color = this.secondaryColor;
                 this.element.appendChild(span);
                 this.textChunks.push(span);
             }
+        }
+        if (!hasText) {
+            this.element.classList.add("no_bg");
         }
 
         parent.appendChild(this.element);
@@ -367,27 +373,29 @@ export class DialogueEvent {
 
         // Finally, check for colliding subtitles in parent and move down if needed.
         // If there's no space below, move up
+        // https://github.com/spessasus/SpessaSynth/issues/181
         const thisRect = this.element.getBoundingClientRect();
+        const parentRect = parent.getBoundingClientRect();
+        let top = thisRect.top;
+        const height = thisRect.height;
         for (const subtitle of parent.children) {
             if (subtitle === this.element) {
                 continue;
             }
             const subtitleRect = subtitle.getBoundingClientRect();
-            const parentRect = parent.getBoundingClientRect();
+            const thisBottom = top + height;
+            const subBottom = subtitleRect.top + subtitleRect.height;
             // Check for collision
-            if (
-                thisRect.top < subtitleRect.bottom &&
-                thisRect.bottom > subtitleRect.top
-            ) {
+            if (!(subBottom <= top || thisBottom <= subtitleRect.top)) {
                 // Check if this.element can fit between parentRect.top and subtitleRect.top
-                if (subtitleRect.top - parentRect.top > thisRect.height) {
+                if (subtitleRect.top - parentRect.top > height) {
+                    top -= subtitleRect.height;
                     // Move up
-                    this.element.style.top = "";
-                    this.element.style.bottom = `${parentRect.bottom - subtitleRect.top}px`;
+                    this.element.style.top = `${top}px`;
                 } else {
+                    top += subtitleRect.height;
                     // Move down
-                    this.element.style.top = `${subtitleRect.top + subtitleRect.height}px`;
-                    this.element.style.bottom = "";
+                    this.element.style.top = `${top}px`;
                 }
             }
         }
