@@ -147,7 +147,9 @@ export function exportAndSaveSF2(this: Manager) {
                                 const progress = p.sampleIndex / p.sampleCount;
                                 progressDiv.style.width = `${progress * 100}%`;
                                 detailMessage.textContent = `${exportingMessage} ${Math.floor(progress * 100)}%`;
-                            }
+                            },
+                            bankVersion: "sfe-4.0",
+                            use64Bit: false
                         }
                     );
                     this.seq?.play();

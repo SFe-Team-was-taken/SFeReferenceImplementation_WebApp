@@ -35,6 +35,7 @@ function isSoundBank(name: string): boolean {
     return (
         fName.endsWith("sf2") ||
         fName.endsWith("sf3") ||
+        fName.endsWith("sf4") ||
         fName.endsWith("sfogg") ||
         fName.endsWith("dls")
     );
@@ -83,6 +84,7 @@ export function serveStaticFile(
         filePath = questionMark[0];
     }
     if (
+        filePath.toLowerCase().endsWith(".sf4") ||
         filePath.toLowerCase().endsWith(".sf3") ||
         filePath.toLowerCase().endsWith(".sf2") ||
         filePath.toLowerCase().endsWith(".sfogg") ||

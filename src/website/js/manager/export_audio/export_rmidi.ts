@@ -287,7 +287,9 @@ export function _exportRMIDI(this: Manager) {
                         progressFunction: (p) => {
                             message.textContent = modifyingSoundFont;
                             progressDiv.style.width = `${(p.sampleIndex / p.sampleCount) * 100}%`;
-                        }
+                        },
+                        bankVersion: "sfe-4.0",
+                        use64Bit: false
                     });
 
                     this.saveBlob(new Blob([exported]), `${songTitle}.rmi`);
