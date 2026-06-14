@@ -171,7 +171,9 @@ export function exportAndSaveSF2(this: Manager) {
                                 progressDiv.style.width = `${p * 100}%`;
                                 detailMessage.textContent = `${exportingMessage} ${Math.floor(p * 100)}%`;
                             },
-                            sequencerID: 0
+                            sequencerID: 0,
+                            bankVersion: "sfe-4.0",
+                            use64Bit: false
                         }
                     );
                     this.seq?.play();
