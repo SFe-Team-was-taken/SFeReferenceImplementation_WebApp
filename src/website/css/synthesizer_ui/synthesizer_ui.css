@@ -2,13 +2,13 @@
 @import "voice_selector.css";
 @import "synthui_button.css";
 
-#synthetizer_controls {
+#synthesizer_controls {
     --voice-meter-height: 2.5em;
     --synthui-background: rgba(0, 0, 0, 0.8);
     --synthui-border-radius: var(--primary-border-radius);
 }
 
-#synthetizer_controls * {
+#synthesizer_controls * {
     user-select: none;
     -webkit-user-select: none;
     --synthui-margin: 0.2em;
@@ -31,8 +31,44 @@
 }
 
 .main_controller_element {
-    margin-left: 0.5em;
-    margin-right: 0.5em;
+    margin: var(--synthui-margin);
+}
+
+.effect_wrapper {
+    display: flex;
+    flex-direction: column;
+    max-width: 70vw;
+    margin: auto;
+    justify-content: center;
+}
+
+.effect_wrapper h2 {
+    margin-bottom: 0 !important;
+}
+
+.effect_wrapper h4 {
+    font-style: italic;
+}
+
+.effect_wrapper > * {
+    width: auto;
+    margin-bottom: 1em;
+}
+
+@media (min-aspect-ratio: 0.8) {
+    .effect_wrapper .voice_meter {
+        min-width: 33%;
+    }
+}
+
+.effect_wrapper_params {
+    display: flex;
+    flex-wrap: wrap;
+}
+@media (min-aspect-ratio: 0.8) {
+    .effect_wrapper_params.global_insertion .voice_meter {
+        min-width: 32%;
+    }
 }
 
 .synthui_port_group {
@@ -80,8 +116,13 @@
     padding: 0.5em;
 }
 
-.synthui_controller_light {
-    background: linear-gradient(115deg, rgb(200, 200, 200), rgba(255, 255, 255), rgba(200, 200, 200)) !important;
+.light_mode .synthui_controller {
+    background: linear-gradient(
+        115deg,
+        rgb(200, 200, 200),
+        rgba(255, 255, 255),
+        rgba(200, 200, 200)
+    ) !important;
 }
 
 .synthui_controller_show {
@@ -108,11 +149,20 @@
     min-width: var(--voice-meter-height);
 }
 
+.mute_button pre {
+    font-size: 1.5rem;
+    font-weight: bold;
+}
+
+.mute_button.red pre {
+    color: red;
+}
+
 .mute_button_light * {
     color: black;
 }
 
-.mute_button svg {
+.mute_button > * {
     transition: transform 0.2s ease;
 }
 
@@ -125,7 +175,7 @@
     cursor: pointer;
 }
 
-.mute_button:hover svg {
+.mute_button:hover > * {
     transform: scale(1.1) rotate(5deg);
 }
 

@@ -3,7 +3,8 @@
     --top-part-border-radius: 1.5rem;
     position: relative;
     background: var(--top-color);
-    border-radius: 0 0 var(--top-part-border-radius) var(--top-part-border-radius);
+    border-radius: 0 0 var(--top-part-border-radius)
+        var(--top-part-border-radius);
     padding: 3px;
     display: flex;
     flex-wrap: wrap;
@@ -90,26 +91,32 @@ input[type="file"] {
     flex-wrap: wrap;
     justify-content: space-around;
 }
+.midi_and_sf_controller label,
+.midi_and_sf_controller a {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
 
-.midi_and_sf_controller label, .general_button {
+.midi_and_sf_controller label,
+.general_button {
     padding: 6px;
     border-radius: var(--primary-border-radius);
     cursor: pointer;
     background: var(--top-buttons-color);
     font-weight: bolder;
     margin: 5px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
     transition: all 0.1s ease;
     border: none;
 }
 
-.link a {
+.link a,
+.link svg * {
     color: yellowgreen;
 }
 
-.midi_and_sf_controller label:active, .general_button:active {
+.midi_and_sf_controller label:active,
+.general_button:active {
     filter: brightness(0.9);
     transform: scale(var(--active-scale));
 }

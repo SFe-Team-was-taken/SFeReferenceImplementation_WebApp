@@ -9,10 +9,10 @@ import {
 import { Renderer } from "../renderer/renderer.js";
 
 import { SequencerUI } from "../sequencer_ui/sequencer_ui.js";
-import { SynthetizerUI } from "../synthesizer_ui/synthetizer_ui.js";
+import { SynthesizerUI } from "../synthesizer_ui/synthetizer_ui.js";
 import { SpessaSynthSettings } from "../settings_ui/settings.js";
 import { MusicModeUI } from "../music_mode_ui/music_mode_ui.js";
-import { LocaleManager } from "../locale/locale_manager.js";
+import { LocaleManager } from "./locale_manager.js";
 import { isMobile } from "../utils/is_mobile.js";
 import { keybinds } from "../utils/keybinds.js";
 import { showAudioExportMenu } from "./export_audio/export_audio.js";
@@ -30,6 +30,7 @@ import { prepareExtraBankUpload } from "./extra_bank_handling.js";
 
 import { EXTRA_BANK_ID, SOUND_BANK_ID } from "./bank_id.ts";
 import type { Synthesizer } from "../utils/synthesizer.ts";
+import { writeDLS } from "./export_audio/export_dls.ts"; // This enables transitions on the body because if we enable them during loading time, it flash-bangs us with white
 
 // This enables transitions on the body because if we enable them during loading time, it flash-bangs us with white
 document.body.classList.add("load");
@@ -46,13 +47,14 @@ export class Manager {
     public enableDebug;
     public readonly ready;
     public readonly localeManager;
-    public readonly workerMode = "chrome" in window;
+    public readonly workerMode;
     public synth?: Synthesizer;
     public seq?: Sequencer;
     public readonly showExportMenu = showExportMenu.bind(this);
     public seqUI?: SequencerUI;
     public sBankBuffer: ArrayBuffer;
     protected isExporting;
+    protected keyboardMode = false;
     protected readonly showAudioExportMenu = showAudioExportMenu.bind(this);
     /**
      * Extra sound bank upload tracking (for rendering audio and file name)
@@ -83,7 +85,7 @@ export class Manager {
     ];
     private keyboard?: MIDIKeyboard;
     private renderer?: Renderer;
-    private synthUI?: SynthetizerUI;
+    private synthUI?: SynthesizerUI;
     private musicModeUI?: MusicModeUI;
     private settingsUI?: SpessaSynthSettings;
     private readonly context;
@@ -104,16 +106,16 @@ export class Manager {
         this.isExporting = false;
         this.sBankBuffer = sfBuffer;
 
+        const urlParams = new URLSearchParams(window.location.search);
+        const mode = urlParams.get("mode");
+        this.workerMode = mode ? mode === "chromium" : "chrome" in window;
+
         this.audioDelay = new DelayNode(context, {
             delayTime: 0
         });
         this.audioDelay.connect(context.destination);
 
-        this.ready = new Promise<void>((resolve) => {
-            void this.initializeContext(context, sfBuffer).then(() => {
-                resolve();
-            });
-        });
+        this.ready = this.initializeContext(context, sfBuffer);
     }
 
     protected get soundBankID() {
@@ -155,7 +157,7 @@ export class Manager {
                     }
                 }
             ],
-            99999999
+            99_999_999
         );
     }
 
@@ -165,7 +167,10 @@ export class Manager {
         }
         this.seq?.pause();
         const text = sf.slice(8, 12);
-        const header = util.readBytesAsString(new IndexedByteArray(text), 4);
+        const header = util.readBinaryStringIndexed(
+            new IndexedByteArray(text),
+            4
+        );
         const isDLS = header.toLowerCase() === "dls " && !this.isLocalEdition;
         await this.setSF(sf);
         if (isDLS) {
@@ -194,13 +199,14 @@ export class Manager {
     }
 
     public async downloadDesfont() {
-        if (this.synth instanceof WorkerSynthesizer) {
-            const sf = await this.synth?.writeSF2();
-            if (!sf) {
-                return;
-            }
-            this.saveBlob(new Blob([sf.binary]), sf.fileName);
-        }
+        const sf = await writeDLS.call(this, {
+            trim: false,
+            bankID: "main",
+            writeEmbeddedSoundBank: false,
+            sequencerID: 0,
+            software: "SpessaSynth"
+        });
+        this.saveBlob(new Blob([sf.binary]), sf.fileName);
     }
 
     public async exportMidi() {
@@ -233,7 +239,7 @@ export class Manager {
             console.info("Transferring to worker directly...");
             await this.synth.soundBankManager.addSoundBank(sf, SOUND_BANK_ID);
         }
-        console.info("Sound bank reloaded succesfully.");
+        console.info("Sound bank reloaded successfully.");
     }
 
     private saveUrl(url: string, name: string) {
@@ -262,6 +268,7 @@ export class Manager {
                 context,
                 worker.postMessage.bind(worker)
             );
+            // eslint-disable-next-line unicorn/prefer-add-event-listener
             worker.onmessage = (e) =>
                 synth.handleWorkerMessage(
                     e.data as Parameters<typeof synth.handleWorkerMessage>[0]
@@ -290,6 +297,17 @@ export class Manager {
                 element,
                 "textContent",
                 element.getAttribute("translate-path") ?? ""
+            );
+        }
+
+        // Bind every element with translate-path to translation
+        for (const element of document.querySelectorAll<HTMLElement>(
+            "*[translate-path-description]"
+        )) {
+            this.localeManager.bindObjectProperty(
+                element,
+                "title",
+                element.getAttribute("translate-path-description") ?? ""
             );
         }
 
@@ -330,7 +348,6 @@ export class Manager {
 
         synth.connect(this.audioDelay);
         await synth.isReady;
-        await synth.reverbProcessor?.isReady;
         await this.setSF(soundBank);
 
         // Create seq
@@ -356,9 +373,8 @@ export class Manager {
         /**
          * Set up renderer
          */
-        const canvas: HTMLCanvasElement = document.getElementById(
-            "note_canvas"
-        ) as HTMLCanvasElement;
+        const canvas: HTMLCanvasElement =
+            document.querySelector("#note_canvas")!;
 
         canvas.width = window.innerWidth * window.devicePixelRatio;
         canvas.height = window.innerHeight * window.devicePixelRatio;
@@ -373,7 +389,7 @@ export class Manager {
             this.workerMode,
             window.SPESSASYNTH_VERSION
         );
-        this.renderer.render(true);
+        this.renderer.startRendering();
 
         let titleSwappedWithSettings = false;
         const checkResize = () => {
@@ -381,20 +397,20 @@ export class Manager {
             if (isMobile) {
                 if (window.innerWidth / window.innerHeight > 1) {
                     if (!titleSwappedWithSettings) {
-                        const title = document.getElementById("title_wrapper")!;
+                        const title = document.querySelector("#title_wrapper")!;
                         const settings =
-                            document.getElementById("settings_div")!;
+                            document.querySelector("#settings_div")!;
                         titleSwappedWithSettings = true;
                         title.parentElement?.insertBefore(settings, title);
                     }
                 } else if (titleSwappedWithSettings) {
-                    const title = document.getElementById("title_wrapper")!;
-                    const settings = document.getElementById("settings_div")!;
+                    const title = document.querySelector("#title_wrapper")!;
+                    const settings = document.querySelector("#settings_div")!;
                     titleSwappedWithSettings = false;
                     title.parentElement?.insertBefore(title, settings);
                 }
             }
-            this.renderer?.render(false, true);
+            this.renderer?.renderOneFrame();
             const h = window.location.hostname;
             // Domain correction
             if (
@@ -417,25 +433,31 @@ export class Manager {
         }
 
         // Set up synth UI
-        this.synthUI = new SynthetizerUI(
+        this.synthUI = new SynthesizerUI(
             this.channelColors,
-            document.getElementById("synthetizer_controls")!,
+            document.querySelector("#synthesizer_controls")!,
             this.localeManager,
             this.keyboard,
             this.synth,
-            this.seq
+            this.seq,
+            this.renderer
         );
+
+        // Connect muting to renderer
+        this.synthUI.onMute.push((channel, isMuted) => {
+            this.renderer!.renderChannels[channel] = !isMuted;
+        }, this.keyboard.onMute.bind(this.keyboard));
 
         // Create a UI for music player mode
         this.musicModeUI = new MusicModeUI(
-            document.getElementById("player_info")!,
+            document.querySelector("#player_info")!,
             this.localeManager,
             this.seq
         );
 
         // Create a UI for sequencer
         this.seqUI = new SequencerUI(
-            document.getElementById("sequencer_controls")!,
+            document.querySelector("#sequencer_controls")!,
             this.localeManager,
             this.musicModeUI,
             this.renderer,
@@ -445,7 +467,7 @@ export class Manager {
 
         // Set up settings UI
         this.settingsUI = new SpessaSynthSettings(
-            document.getElementById("settings_div")!,
+            document.querySelector("#settings_div")!,
             this.synth,
             this.seq,
             this.synthUI,
@@ -456,18 +478,17 @@ export class Manager {
             this.localeManager,
             this.audioDelay
         );
-
         this.synthUI.onProgramChange = (channel) => {
             // QoL: change the keyboard channel to the changed one when user changed it: adjust selector here
             this.keyboard?.selectChannel(channel);
 
-            this.settingsUI!.htmlControls.keyboard.channelSelector.value =
+            this.settingsUI!.htmlControls.keyboard.selectedChannel.value =
                 channel.toString();
         };
 
         // Transpose should also preview in pause mode #182
         this.synthUI.onTranspose = () => {
-            this.renderer?.render(false, true);
+            this.renderer?.renderOneFrame();
         };
 
         // Set up drop file handler
@@ -479,74 +500,104 @@ export class Manager {
             this.play(data);
             let firstName = data[0].fileName;
             if (firstName.length > 20) {
-                firstName = firstName.substring(0, 21) + "...";
+                firstName = firstName.slice(0, 21) + "...";
             }
             // Set file name
-            document.getElementById("file_upload")!.textContent = firstName;
+            document.querySelector("#file_upload")!.textContent = firstName;
             // Show export button
-            const exportButton = document.getElementById("export_button")!;
+            const exportButton =
+                document.querySelector<HTMLLabelElement>("#export_button")!;
             exportButton.style.display = "flex";
-            exportButton.onclick = this.showExportMenu.bind(this);
+            exportButton.addEventListener(
+                "click",
+                this.showExportMenu.bind(this)
+            );
             // If demo website, hide demo songs button
-            if (this.isLocalEdition) {
-                document.getElementById("demo_song")!.style.display = "none";
+            if (!this.isLocalEdition) {
+                document.querySelector<HTMLLabelElement>(
+                    "#demo_song"
+                )!.style.display = "none";
             }
         }, this.reloadSf.bind(this));
 
         // Add key presses
-        document.addEventListener("keydown", (e) => {
-            // Check for control
-            if (e.ctrlKey) {
-                // Do not interrupt control shortcuts
-                return;
-            }
-            switch (e.key.toLowerCase()) {
-                case keybinds.videoMode:
-                    this.seqUI?.seqPause();
-                    const videoSource = window.prompt(
-                        "Video mode!\n Paste the link to the video source (leave blank to disable)\n" +
-                            "Note: the video will be available in console as 'video'",
-                        ""
-                    );
-                    if (videoSource === null) {
-                        return;
+        document.addEventListener(
+            "keydown",
+            (e) => {
+                // Check for control
+                if (e.ctrlKey || e.repeat) {
+                    // Do not interrupt control shortcuts
+                    e.stopImmediatePropagation();
+                    return;
+                }
+                const key = e.key.toLowerCase();
+                if (this.keyboardMode && key !== keybinds.keyboardMode) {
+                    e.stopImmediatePropagation();
+
+                    const note = keybinds.keyboardKeys[key];
+                    if (note) {
+                        this.synth?.noteOn(this.keyboard!.channel, note, 120);
                     }
-                    const video = document.createElement("video");
-                    video.src = videoSource;
-                    video.classList.add("secret_video");
-                    canvas.parentElement?.appendChild(video);
-                    void video.play();
-                    // @ts-expect-error Globally accessible
-                    window.video = video;
-                    if (this.seq) {
-                        video.currentTime = parseFloat(
-                            window.prompt(
-                                "Video offset to sync to midi, in seconds.",
-                                "0"
-                            ) ?? "0"
+                    return;
+                }
+                switch (key) {
+                    case keybinds.videoMode: {
+                        this.seqUI?.seqPause();
+                        const videoSource = window.prompt(
+                            "Video mode!\n Paste the link to the video source (leave blank to disable)\n" +
+                                "Note: the video will be available in console as 'video'",
+                            ""
                         );
-                        void video.play();
-                        this.seq.currentTime = 0;
-                        this.seq.play();
-                    }
-                    document.addEventListener("keydown", (e) => {
-                        if (e.key === " ") {
-                            if (video.paused) {
-                                void video.play();
-                            } else {
-                                video.pause();
-                            }
+                        if (videoSource === null) {
+                            return;
                         }
-                    });
+                        const video = document.createElement("video");
+                        video.src = videoSource;
+                        video.classList.add("secret_video");
+                        canvas.parentElement?.append(video);
+                        void video.play();
+                        // @ts-expect-error Globally accessible
+                        window.video = video;
+                        if (this.seq) {
+                            video.currentTime = Number.parseFloat(
+                                window.prompt(
+                                    "Video offset to sync to midi, in seconds.",
+                                    "0"
+                                ) ?? "0"
+                            );
+                            void video.play();
+                            this.seq.currentTime = 0;
+                            this.seq.play();
+                        }
+                        document.addEventListener("keydown", (e) => {
+                            if (e.key === " ") {
+                                if (video.paused) {
+                                    void video.play();
+                                } else {
+                                    video.pause();
+                                }
+                            }
+                        });
 
-                    break;
+                        break;
+                    }
 
-                case keybinds.sustainPedal:
-                    this.renderer!.showHoldPedal = true;
-                    this.renderer!.render(false);
-                    this.keyboard!.setHoldPedal(true);
-            }
-        });
+                    case keybinds.sustainPedal: {
+                        this.renderer!.showHoldPedal = true;
+                        this.renderer!.renderOneFrame();
+                        this.keyboard!.setHoldPedal(true);
+                        break;
+                    }
+
+                    case keybinds.keyboardMode: {
+                        this.keyboardMode = !this.keyboardMode;
+                        this.renderer!.showKeyboardMode = this.keyboardMode;
+                        this.renderer!.renderOneFrame();
+                    }
+                }
+            },
+            true
+        );
 
         document.addEventListener("keyup", (e) => {
             // Check for control
@@ -554,19 +605,29 @@ export class Manager {
                 // Do not interrupt control shortcuts
                 return;
             }
-            switch (e.key.toLowerCase()) {
-                case keybinds.sustainPedal:
+            const key = e.key.toLowerCase();
+            if (this.keyboardMode) {
+                const note = keybinds.keyboardKeys[key];
+                if (note) {
+                    this.synth?.noteOff(this.keyboard!.channel, note);
+                }
+                return;
+            }
+            switch (key) {
+                case keybinds.sustainPedal: {
                     this.renderer!.showHoldPedal = false;
-                    this.renderer!.render(false);
+                    this.renderer!.renderOneFrame();
                     this.keyboard!.setHoldPedal(false);
                     break;
+                }
 
-                default:
+                default: {
                     break;
+                }
             }
         });
 
-        this.renderer.render(false, true);
+        this.renderer.renderOneFrame();
         // This will resume the context on first user interaction
         void context.resume();
         // ANY TEST CODE FOR THE SYNTHESIZER GOES HERE

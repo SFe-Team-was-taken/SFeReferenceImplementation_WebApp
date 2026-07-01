@@ -1,8 +1,13 @@
 import path from "node:path";
 import fs from "node:fs/promises";
 import { buildSpessaSynth } from "./build_script.ts";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
-const REPO_ROOT = path.resolve(import.meta.dirname, "../..");
+// Don't use meta.dirname: https://github.com/spessasus/SpessaSynth
+const REPO_ROOT = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "../.."
+);
 const SERVER_FILE = path.resolve(REPO_ROOT, "server/server.js");
 console.info("‍🖥️  Dev mode enabled!");
 
@@ -22,4 +27,4 @@ if (!(await fileExists(SERVER_FILE))) {
 
 console.info("🖥️ Starting server...");
 // Execute!
-await import(SERVER_FILE);
+await import(pathToFileURL(SERVER_FILE).toString());

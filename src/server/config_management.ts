@@ -1,0 +1,44 @@
+import path from "node:path";
+import fs from "node:fs/promises";
+import { type ConfigFile, DEFAULT_CONFIG_FILE } from "./saved_settings.ts";
+import { fillWithDefaults } from "../website/js/utils/fill_with_defaults.ts";
+import { fileURLToPath } from "node:url";
+
+// Don't use import.meta.dirname: https://github.com/spessasus/SpessaSynth
+const configPath = path.join(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "./config.json"
+);
+
+export class LocalEditionConfig {
+    public readonly config: ConfigFile;
+
+    private constructor(conf: ConfigFile) {
+        this.config = conf;
+    }
+
+    public static async initialize(): Promise<LocalEditionConfig> {
+        let configJSON: string;
+        try {
+            configJSON = await fs.readFile(configPath, "utf-8");
+        } catch {
+            console.info("Unable to read the config file, creating a new one");
+            const c = new LocalEditionConfig(DEFAULT_CONFIG_FILE);
+            await c.flush();
+            return c;
+        }
+        try {
+            const conf = JSON.parse(configJSON) as Partial<ConfigFile>;
+            return new LocalEditionConfig(
+                fillWithDefaults(conf, DEFAULT_CONFIG_FILE)
+            );
+        } catch (error) {
+            console.warn("Invalid config file:", error);
+            return new LocalEditionConfig({ ...DEFAULT_CONFIG_FILE });
+        }
+    }
+
+    public async flush() {
+        await fs.writeFile(configPath, JSON.stringify(this.config), "utf-8");
+    }
+}

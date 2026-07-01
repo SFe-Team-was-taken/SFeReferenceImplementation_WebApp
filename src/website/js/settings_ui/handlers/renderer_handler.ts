@@ -1,38 +1,41 @@
 import { getSpan } from "../sliders.js";
-import { type RendererMode, rendererModes } from "../../renderer/renderer.js";
 import type { SpessaSynthSettings } from "../settings.ts";
+import { Ut } from "../../utils/other.js";
+import {
+    type RendererMode,
+    rendererModes
+} from "../../renderer/renderer_modes.ts";
 
 export function _setRendererMode(
     this: SpessaSynthSettings,
     mode: RendererMode
 ) {
-    const waveformSettings = document.getElementById(
-        "renderer_waveform_settings"
+    const waveformSettings = document.querySelector(
+        "#renderer_waveform_settings"
     )!;
-    const freqSettings = document.getElementById(
-        "renderer_frequency_settings"
+    const freqSettings = document.querySelector(
+        "#renderer_frequency_settings"
     )!;
-    const generalAnalyserSettings = document.getElementById(
-        "renderer_analyser_settings"
+    const generalAnalyserSettings = document.querySelector(
+        "#renderer_analyser_settings"
     )!;
-    generalAnalyserSettings.classList.remove("hidden");
+    Ut.show(generalAnalyserSettings);
     this.renderer.setRendererMode(mode);
     if (mode === rendererModes.none) {
-        freqSettings.classList.add("hidden");
-        waveformSettings.classList.add("hidden");
-        generalAnalyserSettings.classList.add("hidden");
+        Ut.hide(freqSettings);
+        Ut.hide(waveformSettings);
+        Ut.hide(generalAnalyserSettings);
     } else if (
         mode === rendererModes.waveformsMode ||
         mode === rendererModes.filledWaveformsMode
     ) {
         // Show appropriate settings
-        waveformSettings.classList.remove("hidden");
-        freqSettings.classList.add("hidden");
+        Ut.show(waveformSettings);
+        Ut.hide(freqSettings);
     } else {
-        waveformSettings.classList.add("hidden");
-        freqSettings.classList.remove("hidden");
+        Ut.hide(waveformSettings);
+        Ut.show(freqSettings);
     }
-    this.saveSettings();
 }
 
 export function _createRendererHandler(this: SpessaSynthSettings) {
@@ -40,122 +43,131 @@ export function _createRendererHandler(this: SpessaSynthSettings) {
 
     // Rendering mode
     rendererControls.renderingMode.addEventListener("change", () => {
-        this.setRendererMode(parseInt(rendererControls.renderingMode.value));
+        this.setRendererMode(
+            Number.parseInt(rendererControls.renderingMode.value)
+        );
+
+        this.saveSettings();
     });
 
-    rendererControls.renderingMode.dispatchEvent(new CustomEvent("change"));
+    this.setRendererMode(Number.parseInt(rendererControls.renderingMode.value));
 
     // Note falling time
-    rendererControls.noteTimeSlider.addEventListener("input", () => {
-        this.renderer.noteFallingTimeMs = parseInt(
-            rendererControls.noteTimeSlider.value
+    rendererControls.noteFallingTime.addEventListener("input", () => {
+        this.renderer.noteFallingTime = Number.parseInt(
+            rendererControls.noteFallingTime.value
         );
-        getSpan(rendererControls.noteTimeSlider).innerText =
-            `${rendererControls.noteTimeSlider.value}ms`;
+        getSpan(rendererControls.noteFallingTime).textContent =
+            `${rendererControls.noteFallingTime.value}ms`;
     });
     // Bind to onchange instead of oninput to prevent spam
-    rendererControls.noteTimeSlider.onchange = () => {
+    rendererControls.noteFallingTime.addEventListener("change", () => {
         this.saveSettings();
-    };
+    });
 
     // Note after trigger time
-    rendererControls.noteAfterTriggerTimeSlider.addEventListener(
-        "input",
-        () => {
-            this.renderer.noteAfterTriggerTimeMs = parseInt(
-                rendererControls.noteAfterTriggerTimeSlider.value
-            );
-            getSpan(rendererControls.noteAfterTriggerTimeSlider).innerText =
-                `${rendererControls.noteAfterTriggerTimeSlider.value}ms`;
-        }
-    );
-    rendererControls.noteAfterTriggerTimeSlider.onchange = () => {
+    rendererControls.noteAfterTriggerTime.addEventListener("input", () => {
+        this.renderer.noteAfterTriggerTime = Number.parseInt(
+            rendererControls.noteAfterTriggerTime.value
+        );
+        getSpan(rendererControls.noteAfterTriggerTime).textContent =
+            `${rendererControls.noteAfterTriggerTime.value}ms`;
+    });
+    rendererControls.noteAfterTriggerTime.addEventListener("change", () => {
         this.saveSettings();
-    };
+    });
 
     // Waveform line thickness
-    rendererControls.analyserThicknessSlider.addEventListener("input", () => {
-        this.renderer.lineThickness = parseInt(
-            rendererControls.analyserThicknessSlider.value
+    rendererControls.lineThickness.addEventListener("input", () => {
+        this.renderer.lineThickness = Number.parseInt(
+            rendererControls.lineThickness.value
         );
-        getSpan(rendererControls.analyserThicknessSlider).innerText =
-            `${rendererControls.analyserThicknessSlider.value}px`;
+        getSpan(rendererControls.lineThickness).textContent =
+            `${rendererControls.lineThickness.value}px`;
     });
-    rendererControls.analyserThicknessSlider.onchange = () => {
+    rendererControls.lineThickness.addEventListener("change", () => {
         this.saveSettings();
-    };
+    });
 
     // Fft size (sample size)
-    rendererControls.analyserFftSlider.addEventListener("input", () => {
+    rendererControls.analyserFftSize.addEventListener("input", () => {
         const value = Math.pow(
             2,
-            parseInt(rendererControls.analyserFftSlider.value)
+            Number.parseInt(rendererControls.analyserFftSize.value)
         );
-        this.renderer.normalAnalyserFft = value;
-        this.renderer.drumAnalyserFft = Math.pow(
-            2,
-            Math.min(15, parseInt(rendererControls.analyserFftSlider.value) + 1)
-        );
+        this.renderer.analyserFftSize = value;
         this.renderer.updateFftSize();
         this.setTimeDelay(value);
-        getSpan(rendererControls.analyserFftSlider).innerText = `${value}`;
+        getSpan(rendererControls.analyserFftSize).textContent = `${value}`;
     });
-    rendererControls.analyserFftSlider.onchange = () => {
+    rendererControls.analyserFftSize.addEventListener("change", () => {
         this.saveSettings();
-    };
+    });
 
     // Wave multiplier
-    rendererControls.waveMultiplierSlizer.addEventListener("input", () => {
-        this.renderer.waveMultiplier = parseInt(
-            rendererControls.waveMultiplierSlizer.value
+    rendererControls.waveMultiplier.addEventListener("input", () => {
+        this.renderer.waveMultiplier = Number.parseInt(
+            rendererControls.waveMultiplier.value
         );
-        getSpan(rendererControls.waveMultiplierSlizer).innerText =
-            rendererControls.waveMultiplierSlizer.value;
+        getSpan(rendererControls.waveMultiplier).textContent =
+            rendererControls.waveMultiplier.value;
     });
-    rendererControls.waveMultiplierSlizer.onchange = () => {
+    rendererControls.waveMultiplier.addEventListener("change", () => {
         this.saveSettings();
-    };
+    });
+
+    // Show preset names
+    rendererControls.showPresetNames.addEventListener("click", () => {
+        this.renderer.showPresetNames = !this.renderer.showPresetNames;
+        this.saveSettings();
+    });
 
     // Render notes
-    rendererControls.noteToggler.onclick = () => {
+    rendererControls.renderNotes.addEventListener("click", () => {
         this.renderer.renderNotes = !this.renderer.renderNotes;
         this.saveSettings();
-    };
+    });
 
     // Render active notes effect
-    rendererControls.activeNoteToggler.onclick = () => {
+    rendererControls.drawActiveNotes.addEventListener("click", () => {
         this.renderer.drawActiveNotes = !this.renderer.drawActiveNotes;
         this.saveSettings();
-    };
+    });
 
     // Show visual pitch
-    rendererControls.visualPitchToggler.onclick = () => {
+    rendererControls.showVisualPitch.addEventListener("click", () => {
         this.renderer.showVisualPitch = !this.renderer.showVisualPitch;
         this.saveSettings();
-    };
+    });
+
+    // Render dot matrix
+    rendererControls.renderDotDisplay.addEventListener("click", () => {
+        this.renderer.renderDotDisplay = !this.renderer.renderDotDisplay;
+        this.saveSettings();
+    });
 
     // Stabilize waveforms
-    rendererControls.stabilizeWaveformsToggler.onclick = () => {
+    rendererControls.stabilizeWaveforms.addEventListener("click", () => {
         this.renderer.stabilizeWaveforms = !this.renderer.stabilizeWaveforms;
         this.saveSettings();
-    };
+    });
 
     // Dynamic gain
-    rendererControls.dynamicGainToggler.onclick = () => {
+    rendererControls.dynamicGain.addEventListener("click", () => {
         this.renderer.dynamicGain = !this.renderer.dynamicGain;
         this.saveSettings();
-    };
+    });
 
     // Logarithmic frequency
-    rendererControls.logarithmicFrequencyToggler.onclick = () => {
+    rendererControls.logarithmicFrequency.addEventListener("click", () => {
         this.renderer.logarithmicFrequency =
             !this.renderer.logarithmicFrequency;
         this.saveSettings();
-    };
+    });
 
     // Exponential gain
-    rendererControls.exponentialGainToggler.onclick = () => {
+    rendererControls.exponentialGain.addEventListener("click", () => {
         this.renderer.exponentialGain = !this.renderer.exponentialGain;
         this.saveSettings();
-    };
+    });
 }

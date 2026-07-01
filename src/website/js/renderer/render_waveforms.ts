@@ -1,9 +1,11 @@
-import { Renderer, rendererModes } from "./renderer.js";
+import { Renderer } from "./renderer.js";
 import { intensityColors } from "./colors.js";
+import { rendererModes } from "./renderer_modes.ts";
 
 export const STABILIZE_WAVEFORMS_FFT_MULTIPLIER = 4;
 const EXPONENTIAL_GAIN = Math.E;
 const EXPONENTIAL_AGGRESSIVE = 3;
+const WAVE_GAIN = 0.7;
 
 /**
  * @param channelNumber
@@ -43,9 +45,17 @@ export function renderSingleWaveform(
         straightLine();
         return;
     }
-    const waveform = new Float32Array(analyser.frequencyBinCount);
+    const sampleCount = analyser.fftSize;
+    const waveform = this.sampleBuffer;
     analyser.getFloatTimeDomainData(waveform);
-    const voicesPlaying = waveform.some((v) => v !== 0);
+    let voicesPlaying = false;
+    for (let i = 0; i < sampleCount; i++) {
+        if (waveform[i] !== 0) {
+            voicesPlaying = true;
+            break;
+        }
+    }
+    this.voicesPlaying[channelNumber] = voicesPlaying;
     if (!voicesPlaying) {
         // Draw a straight line
         straightLine();
@@ -54,33 +64,66 @@ export function renderSingleWaveform(
 
     const relativeX = waveWidth * x;
     const relativeY = waveHeight * y + waveHeight / 2;
-    const multiplier = this.waveMultiplier * waveHeight;
+    const multiplier = this.waveMultiplier * WAVE_GAIN * waveHeight;
 
     // Draw
     this.drawingContext.lineWidth = this.lineThickness;
     this.drawingContext.strokeStyle = this.plainColors[channelNumber];
     this.drawingContext.fillStyle = this.plainColors[channelNumber];
 
-    let triggerPoint = 0;
-    let length = waveform.length;
+    let triggerPoint;
+    let length = sampleCount;
     let renderStart = 0;
-    let renderEnd = waveform.length;
+    let renderEnd = sampleCount;
     if (this._stabilizeWaveforms) {
         // Fraction length
-        length = waveform.length / STABILIZE_WAVEFORMS_FFT_MULTIPLIER;
-        if (this.synth.channelProperties[channelNumber].isDrum) {
+        length = sampleCount / STABILIZE_WAVEFORMS_FFT_MULTIPLIER;
+        if (this.synth.midiChannels[channelNumber].patch.isDrum) {
             length *= 2;
         }
         const halfLength = Math.floor(length / 2);
-        triggerPoint = waveform.length - halfLength;
-        for (let i = triggerPoint; i >= 1; i--) {
-            if (waveform[i - 1] < 0 && waveform[i] >= 0) {
+        triggerPoint = sampleCount - halfLength;
+        let max = -Infinity;
+        // Multi-pass trigger point detection
+        // Pass 1: find the maximum in the last part of the waveform
+        // TODO: optimize by using max function on a subarray when available
+        const searchStart = Math.max(0, triggerPoint - halfLength);
+        for (let i = triggerPoint; i >= searchStart; i--) {
+            const value = waveform[i];
+            if (value > max) {
+                max = value;
+            }
+        }
+        // Pass 2: find the maximum within a tolerance range around the first trigger point
+        let bestIndex = triggerPoint;
+        triggerPoint = sampleCount - halfLength;
+        const maximumTolerance = 0.04; // 4% tolerance for the second pass
+        for (let i = triggerPoint; i >= searchStart; i--) {
+            const value = waveform[i];
+            if (value > max * (1 - maximumTolerance)) {
+                bestIndex = i;
+                break;
+            }
+        }
+        triggerPoint = bestIndex;
+        // Pass 3: find the zero crossing after the trigger point
+        const zeroCrossEnd = Math.max(triggerPoint - Math.floor(halfLength), 0);
+        let sum = 0;
+        for (let i = 0; i < sampleCount; i++) {
+            sum += waveform[i];
+        }
+        const waveformAverage = sum / sampleCount;
+        // Look for the average to remove DC offset
+        for (let i = triggerPoint; i >= zeroCrossEnd; i--) {
+            // Reverse search for zero crossing
+            if (waveform[i] <= waveformAverage) {
+                // Zero crossing detected
                 triggerPoint = i;
                 break;
             }
         }
         renderStart = Math.max(0, triggerPoint - halfLength);
-        renderEnd = Math.min(triggerPoint + halfLength, waveform.length);
+        renderEnd = Math.min(triggerPoint + halfLength, sampleCount);
     }
 
     const dataLength = renderEnd - renderStart;
@@ -167,7 +210,7 @@ export function renderBigFft(this: Renderer) {
     if (this.logarithmicFrequency) {
         const maxFrequencyInTable = this.synth.context.sampleRate / 2;
         let lastHeight = -Infinity;
-        let lastXpos = 0;
+        let lastXPos = 0;
         let width = 0;
         for (let i = 0; i < waveWidth; i++) {
             // Calculate the MIDI note (from the lowest piano note to the entire MIDI range)
@@ -191,12 +234,12 @@ export function renderBigFft(this: Renderer) {
             this.drawingContext.fillStyle = intensityColors[valueRemapped];
 
             this.drawingContext.fillRect(
-                lastXpos,
+                lastXPos,
                 relativeY,
                 width,
                 multiplier * height
             );
-            lastXpos = xPos;
+            lastXPos = xPos;
             width = 0;
             xPos += 1;
         }
@@ -312,17 +355,49 @@ export function renderSingleFft(
     this.drawingContext.fill();
 }
 
+function drawEFX(this: Renderer, channel: number) {
+    const ctx = this.drawingContext;
+    ctx.fillStyle = this.darkerColors[channel];
+    const x = channel % 4;
+    const y = Math.floor(channel / 4);
+    const waveWidth = this.canvas.width / 4;
+    const waveHeight = this.canvas.height / 4;
+    const relativeX = waveWidth * x;
+    const relativeY = waveHeight * y + waveHeight;
+    let fontSize = waveHeight;
+    ctx.font = `${fontSize}px monospace`;
+    const text = this.efxText;
+
+    const metrics = ctx.measureText(text);
+
+    const widthRatio = waveWidth / metrics.width;
+    const heightRatio = waveHeight / fontSize;
+
+    const scale = Math.min(widthRatio, heightRatio);
+    fontSize = Math.floor(fontSize * scale);
+
+    ctx.font = `${fontSize}px monospace`;
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "center";
+    ctx.fillText(text, relativeX + waveWidth / 2, relativeY - waveHeight / 2);
+}
+
 export function renderWaveforms(this: Renderer, forceStraightLine = false) {
     const waveWidth = this.canvas.width / 4;
     const waveHeight = this.canvas.height / 4;
     switch (this.rendererMode) {
         default:
-        case rendererModes.none:
+        case rendererModes.none: {
             break;
+        }
 
         case rendererModes.filledWaveformsMode:
-        case rendererModes.waveformsMode:
+        case rendererModes.waveformsMode: {
             for (let i = 0; i < this.channelAnalysers.length; i++) {
+                if (this.synth.midiChannels[i].midiParameters.efxAssign) {
+                    drawEFX.call(this, i);
+                    continue;
+                }
                 this.renderSingleWaveform(
                     i,
                     forceStraightLine,
@@ -332,14 +407,21 @@ export function renderWaveforms(this: Renderer, forceStraightLine = false) {
                 );
             }
             break;
+        }
 
-        case rendererModes.spectrumSplitMode:
+        case rendererModes.spectrumSplitMode: {
             for (let i = 0; i < this.channelAnalysers.length; i++) {
+                if (this.synth.midiChannels[i].midiParameters.efxAssign) {
+                    drawEFX.call(this, i);
+                    continue;
+                }
                 this.renderSingleFft(i, waveWidth, waveHeight);
             }
             break;
+        }
 
-        case rendererModes.spectrumSingleMode:
+        case rendererModes.spectrumSingleMode: {
             this.renderBigFft();
+        }
     }
 }

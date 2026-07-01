@@ -1,7 +1,7 @@
-import { formatTime } from "../utils/other.js";
+import { Ut } from "../utils/other.js";
 import { ANIMATION_REFLOW_TIME } from "../utils/animation_utils.js";
 import { musicModeInnerHTML } from "./music_mode_html.js";
-import type { LocaleManager } from "../locale/locale_manager.ts";
+import type { LocaleManager } from "../manager/locale_manager.ts";
 import type { Sequencer } from "spessasynth_lib";
 
 /**
@@ -68,29 +68,29 @@ export class MusicModeUI {
                     text: string,
                     enableMarquee = true
                 ) => {
-                    const el = document.getElementById(id);
+                    const el = document.querySelector("#" + id);
                     if (!el) {
                         throw new Error(`Invalid music mode element ID: ${id}`);
                     }
                     // If new lines, split up into multiple spans and only then apply marquee
                     const lines = text.trim().split("\n");
                     if (lines.length > 1) {
-                        el?.parentElement?.classList?.remove("hidden");
+                        Ut.show(el?.parentElement);
                         el.innerHTML = "";
                         for (const line of lines) {
                             const textWrap = document.createElement("span");
                             textWrap.textContent = line;
-                            el.appendChild(textWrap);
-                            el.appendChild(document.createElement("br"));
+                            el.append(textWrap);
+                            el.append(document.createElement("br"));
                         }
                         if (el.lastChild) {
-                            el.removeChild(el.lastChild);
+                            el.lastChild.remove();
                         }
                         return;
                     }
 
                     if (text.length > 0) {
-                        el?.parentElement?.classList?.remove("hidden");
+                        Ut.show(el?.parentElement);
                         el.innerHTML = "";
                         // Add scroll if needed
                         if (text.length > 30 && enableMarquee) {
@@ -98,12 +98,12 @@ export class MusicModeUI {
 
                             const textWrap = document.createElement("span");
                             textWrap.textContent = text;
-                            el.appendChild(textWrap);
+                            el.append(textWrap);
                         } else {
                             el.textContent = text;
                         }
                     } else {
-                        el?.parentElement?.classList?.add("hidden");
+                        Ut.hide(el?.parentElement);
                     }
                 };
                 // Details
@@ -115,13 +115,13 @@ export class MusicModeUI {
                         "player_info_detail",
                         mid
                             .getExtraMetadata(mid.infoEncoding ?? "Shift_JIS")
-                            .join("\n")
+                            .join(",")
                     );
                 }
                 // Time
                 setInfoText(
                     "player_info_time",
-                    formatTime(this.seq.duration).time
+                    Ut.formatTime(this.seq.duration).time
                 );
 
                 // File name
@@ -160,10 +160,10 @@ export class MusicModeUI {
                 );
 
                 // Image
-                const svg = this.mainDiv.getElementsByTagName("svg")[0];
-                const img = this.mainDiv.getElementsByTagName("img")[0];
-                const bg = document.getElementById(
-                    "player_info_background_image"
+                const svg = this.mainDiv.querySelectorAll("svg")[0];
+                const img = this.mainDiv.querySelectorAll("img")[0];
+                const bg = document.querySelector<HTMLImageElement>(
+                    "#player_info_background_image"
                 );
                 if (!bg) {
                     throw new Error("Unexpected lack of background image.");
@@ -187,13 +187,13 @@ export class MusicModeUI {
 
     public toggleDarkMode() {
         this.mainDiv
-            .getElementsByClassName("player_info_wrapper")[0]
+            .querySelectorAll(".player_info_wrapper")[0]
             .classList.toggle("light_mode");
     }
 
     public setTitle(title: string) {
         // Get the title
-        const t = document.getElementById("player_info_title");
+        const t = document.querySelector("#player_info_title");
         if (!t) {
             return;
         }

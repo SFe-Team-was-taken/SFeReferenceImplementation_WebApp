@@ -1,24 +1,11 @@
-import type { SynthetizerUI } from "../synthetizer_ui.ts";
+import type { SynthesizerUI } from "../synthetizer_ui.ts";
 
-export function toggleDarkMode(this: SynthetizerUI) {
-    this.mainControllerDiv.classList.toggle("synthui_controller_light");
-    this.mainButtons.forEach((b) => {
-        b.classList.toggle("synthui_button");
-        b.classList.toggle("synthui_button_light");
-    });
+export function toggleDarkMode(this: SynthesizerUI) {
+    this.uiDiv.classList.toggle("light_mode");
 
-    this.mainMeters.forEach((meter) => {
-        meter.toggleMode(true);
-    });
-
-    this.controllers.forEach((controller) => {
-        controller.voiceMeter.toggleMode();
-        controller.pitchWheel.toggleMode();
-        Object.values(controller.controllerMeters).forEach((c) => {
-            c.toggleMode();
-        });
+    for (const controller of this.controllers) {
         controller.preset.toggleMode();
         controller.drumsToggle.classList.toggle("mute_button_light");
         controller.muteButton.classList.toggle("mute_button_light");
-    });
+    }
 }

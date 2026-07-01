@@ -36,21 +36,44 @@ export async function writeSF2(
     const sf = SoundBankLoader.fromArrayBuffer(sfBin);
 
     if (options.trim) {
-        sf.trimSoundBank(mid);
+        sf.trim(mid.getUsedProgramsAndKeys(sf));
     }
 
     const compressionFunction = (audioData: Float32Array, sampleRate: number) =>
         encodeVorbis(audioData, sampleRate, options.compressionQuality);
 
-    const b = await sf.writeSF2({
+    switch (options.compressionAction) {
+        case "keep":
+        default: {
+            // No action
+            break;
+        }
+
+        case "compress": {
+            if (!compressionFunction) {
+                throw new Error(
+                    `Compression enabled but no compression function has been provided! This should not happen, pleas report the bug!`
+                );
+            }
+            await sf.setSampleFormat({
+                compressionFunction,
+                format: "compressed",
+                progressFunction: options.progressFunction
+            });
+            break;
+        }
+
+        case "decompress": {
+            await sf.setSampleFormat({
+                format: "pcm",
+                progressFunction: options.progressFunction
+            });
+        }
+    }
+
+    const b = sf.writeSF2({
         ...options,
-        progressFunction: async (sampleName, sampleIndex, sampleCount) =>
-            await options.progressFunction?.({
-                sampleCount,
-                sampleIndex,
-                sampleName
-            }),
-        compressionFunction: compressionFunction
+        progressFunction: options.progressFunction
     });
     return {
         binary: b,
@@ -108,7 +131,8 @@ export function exportAndSaveSF2(this: Manager) {
                         "input[compress-toggle='1']"
                     ).checked;
                     const quality =
-                        parseInt(getEl("input[type='range']").value) / 10;
+                        Number.parseInt(getEl("input[type='range']").value) /
+                        10;
                     closeNotification(n.id);
                     console.group(
                         "%cExporting soundfont...",
@@ -123,31 +147,31 @@ export function exportAndSaveSF2(this: Manager) {
                             { type: "text", textContent: exportingMessage },
                             { type: "progress" }
                         ],
-                        9999999,
+                        9_999_999,
                         false
                     );
-                    const progressDiv = notification.div.getElementsByClassName(
-                        "notification_progress"
+                    const progressDiv = notification.div.querySelectorAll(
+                        ".notification_progress"
                     )[0] as HTMLDivElement;
                     const detailMessage =
-                        notification.div.getElementsByTagName("p")[0];
+                        notification.div.querySelectorAll("p")[0];
                     const exported = await writeSF2.call(
                         this,
                         await this.seq!.getMIDI(),
                         {
                             bankID: this.soundBankID,
                             trim: trimmed,
-                            compress: compressed,
+                            compressionAction: compressed ? "compress" : "keep",
                             writeDefaultModulators: true,
                             writeExtendedLimits: true,
                             writeEmbeddedSoundBank: true,
-                            decompress: false,
+                            software: "SpessaSynth",
                             compressionQuality: quality,
                             progressFunction: (p) => {
-                                const progress = p.sampleIndex / p.sampleCount;
-                                progressDiv.style.width = `${progress * 100}%`;
-                                detailMessage.textContent = `${exportingMessage} ${Math.floor(progress * 100)}%`;
+                                progressDiv.style.width = `${p * 100}%`;
+                                detailMessage.textContent = `${exportingMessage} ${Math.floor(p * 100)}%`;
                             },
+                            sequencerID: 0,
                             bankVersion: "sfe-4.0",
                             use64Bit: false
                         }
@@ -162,7 +186,7 @@ export function exportAndSaveSF2(this: Manager) {
                 }
             }
         ],
-        99999999,
+        99_999_999,
         true,
         this.localeManager
     );

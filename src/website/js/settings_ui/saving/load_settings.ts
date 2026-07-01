@@ -2,13 +2,14 @@ import { getSpan } from "../sliders.js";
 import { USE_MIDI_RANGE } from "../handlers/keyboard_handler.js";
 import type { SpessaSynthSettings } from "../settings.ts";
 import { fillWithDefaults } from "../../utils/fill_with_defaults.ts";
-import { DEFAULT_SAVED_SETTINGS } from "../../../server/saved_settings.ts";
+import { DEFAULT_SAVED_SETTINGS } from "../../../../server/saved_settings.ts";
 
 export async function _loadSettings(this: SpessaSynthSettings): Promise<void> {
-    if (!("savedSettings" in window)) {
-        throw new Error("No saved settings!");
-    }
-    const savedSettingsPartial = await window.savedSettings;
+    console.info("Loading settings!");
+    const savedSettingsPartial =
+        "savedSettings" in window
+            ? await window.savedSettings
+            : DEFAULT_SAVED_SETTINGS;
 
     const savedSettings = fillWithDefaults(
         savedSettingsPartial,
@@ -26,91 +27,91 @@ export async function _loadSettings(this: SpessaSynthSettings): Promise<void> {
     this.setRendererMode(renderingMode);
 
     // Note falling time
-    const fallingTime = rendererValues.noteFallingTimeMs;
-    renderer.noteFallingTimeMs = fallingTime;
-    rendererControls.noteTimeSlider.value = fallingTime.toString();
-    rendererControls.noteTimeSlider.dispatchEvent(new CustomEvent("input"));
-    getSpan(rendererControls.noteTimeSlider).innerText = `${fallingTime}ms`;
+    const fallingTime = rendererValues.noteFallingTime;
+    renderer.noteFallingTime = fallingTime;
+    rendererControls.noteFallingTime.value = fallingTime.toString();
+    rendererControls.noteFallingTime.dispatchEvent(new CustomEvent("input"));
+    getSpan(rendererControls.noteFallingTime).textContent = `${fallingTime}ms`;
 
     // Note after trigger time
-    const afterTime = rendererValues.noteAfterTriggerTimeMs;
-    renderer.noteAfterTriggerTimeMs = afterTime;
-    rendererControls.noteAfterTriggerTimeSlider.value = afterTime.toString();
-    rendererControls.noteAfterTriggerTimeSlider.dispatchEvent(
+    const afterTime = rendererValues.noteAfterTriggerTime;
+    renderer.noteAfterTriggerTime = afterTime;
+    rendererControls.noteAfterTriggerTime.value = afterTime.toString();
+    rendererControls.noteAfterTriggerTime.dispatchEvent(
         new CustomEvent("input")
     );
-    getSpan(rendererControls.noteAfterTriggerTimeSlider).innerText =
+    getSpan(rendererControls.noteAfterTriggerTime).textContent =
         `${afterTime}ms`;
 
     // Waveform line thickness
     const thickness = rendererValues.waveformThickness;
-    rendererControls.analyserThicknessSlider.value = thickness.toString();
-    rendererControls.analyserThicknessSlider.dispatchEvent(
-        new CustomEvent("input")
-    );
+    rendererControls.lineThickness.value = thickness.toString();
+    rendererControls.lineThickness.dispatchEvent(new CustomEvent("input"));
     renderer.lineThickness = thickness;
-    getSpan(rendererControls.analyserThicknessSlider).innerText =
-        `${thickness}px`;
+    getSpan(rendererControls.lineThickness).textContent = `${thickness}px`;
 
     // Fft size (sample size)
     const fftSize = rendererValues.sampleSize;
-    // Math.pow(2, parseInt(rendererControls.analyserFftSlider.value)); we need to invert this
-    rendererControls.analyserFftSlider.value = Math.log2(fftSize).toString();
-    rendererControls.analyserFftSlider.dispatchEvent(new CustomEvent("input"));
-    renderer.normalAnalyserFft = fftSize;
-    renderer.drumAnalyserFft = Math.pow(
-        2,
-        Math.min(15, Math.log2(fftSize) + 1)
-    );
+    // Math.pow(2, parseInt(rendererControls.analyserFftSize.value)); we need to invert this
+    rendererControls.analyserFftSize.value = Math.log2(fftSize).toString();
+    rendererControls.analyserFftSize.dispatchEvent(new CustomEvent("input"));
+    renderer.analyserFftSize = fftSize;
     renderer.updateFftSize();
     this.setTimeDelay(fftSize);
-    getSpan(rendererControls.analyserFftSlider).innerText = `${fftSize}`;
+    getSpan(rendererControls.analyserFftSize).textContent = `${fftSize}`;
 
     // Wave multiplier
-    const multiplier = rendererValues.amplifier;
+    const multiplier = rendererValues.waveMultiplier;
     renderer.waveMultiplier = multiplier;
-    rendererControls.waveMultiplierSlizer.value = multiplier.toString();
-    rendererControls.waveMultiplierSlizer.dispatchEvent(
-        new CustomEvent("input")
-    );
-    getSpan(rendererControls.waveMultiplierSlizer).innerText =
+    rendererControls.waveMultiplier.value = multiplier.toString();
+    rendererControls.waveMultiplier.dispatchEvent(new CustomEvent("input"));
+    getSpan(rendererControls.waveMultiplier).textContent =
         multiplier.toString();
 
+    // Show preset names
+    const showPresetNames = rendererValues.showPresetNames;
+    renderer.showPresetNames = showPresetNames;
+    rendererControls.showPresetNames.checked = showPresetNames;
+
     // Render notes
-    const controls = this.htmlControls.renderer;
     const renderNotes = rendererValues.renderNotes;
     renderer.renderNotes = renderNotes;
-    controls.noteToggler.checked = renderNotes;
+    rendererControls.renderNotes.checked = renderNotes;
 
     // Render active notes effect
     const activeNotes = rendererValues.drawActiveNotes;
     renderer.drawActiveNotes = activeNotes;
-    controls.activeNoteToggler.checked = activeNotes;
+    rendererControls.drawActiveNotes.checked = activeNotes;
 
     // Show visual pitch
     const visualPitch = rendererValues.showVisualPitch;
     renderer.showVisualPitch = visualPitch;
-    controls.visualPitchToggler.checked = visualPitch;
+    rendererControls.showVisualPitch.checked = visualPitch;
+
+    // Render dot display
+    const dotDisplay = rendererValues.renderDotDisplay;
+    renderer.renderDotDisplay = dotDisplay;
+    rendererControls.renderDotDisplay.checked = dotDisplay;
 
     // Stabilize waveforms
     const stabilize = rendererValues.stabilizeWaveforms;
     renderer.stabilizeWaveforms = stabilize;
-    controls.stabilizeWaveformsToggler.checked = stabilize;
+    rendererControls.stabilizeWaveforms.checked = stabilize;
 
     // Dynamic gain
     const dynamic = rendererValues.dynamicGain;
     renderer.dynamicGain = dynamic;
-    controls.dynamicGainToggler.checked = dynamic;
+    rendererControls.dynamicGain.checked = dynamic;
 
     // Exponential gain
     const exponential = rendererValues.exponentialGain;
     renderer.exponentialGain = exponential;
-    controls.exponentialGainToggler.checked = exponential;
+    rendererControls.exponentialGain.checked = exponential;
 
     // Log frequency
     const logFrequency = rendererValues.logarithmicFrequency;
     renderer.logarithmicFrequency = logFrequency;
-    controls.logarithmicFrequencyToggler.checked = logFrequency;
+    rendererControls.logarithmicFrequency.checked = logFrequency;
 
     // Keyboard size
     renderer.keyRange = rendererValues.keyRange;
@@ -125,13 +126,11 @@ export async function _loadSettings(this: SpessaSynthSettings): Promise<void> {
     keyboard.setKeyRange(range, false);
     // Find the correct option for the size
     if (keyboardValues?.autoRange) {
-        keyboardControls.sizeSelector.value = USE_MIDI_RANGE;
+        keyboardControls.keyRange.value = USE_MIDI_RANGE;
         this.autoKeyRange = true;
     } else {
         this.autoKeyRange = false;
-        keyboardControls.sizeSelector.value = Object.keys(
-            this.keyboardSizes
-        ).find(
+        keyboardControls.keyRange.value = Object.keys(this.keyboardSizes).find(
             (size) =>
                 this.keyboardSizes[size as keyof typeof this.keyboardSizes]
                     .min === range.min &&
@@ -142,14 +141,19 @@ export async function _loadSettings(this: SpessaSynthSettings): Promise<void> {
     // Keyboard theme
     if (keyboardValues.mode === "dark") {
         keyboard.toggleMode(false);
-        this.htmlControls.keyboard.modeSelector.checked = true;
+        this.htmlControls.keyboard.mode.checked = true;
     }
     // Keyboard show
     if (!keyboardValues.show) {
         keyboard.shown = false;
-        this.htmlControls.keyboard.showSelector.checked = false;
+        this.htmlControls.keyboard.shown.checked = false;
     }
 
+    // Keyboard force max velocity
+    if (keyboardValues.forceMaxVelocity) {
+        keyboard.forceMaxVelocity = true;
+        this.htmlControls.keyboard.forceMaxVelocity.checked = true;
+    }
     // Interface
     this.locale.changeGlobalLocale(savedSettings.interface.language, true);
 

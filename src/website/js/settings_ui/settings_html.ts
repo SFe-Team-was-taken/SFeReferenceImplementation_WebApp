@@ -3,7 +3,8 @@
  * purpose: the inner HTML for the settings element
  */
 import { USE_MIDI_RANGE } from "./handlers/keyboard_handler.js";
-import { rendererModes } from "../renderer/renderer.js";
+
+import { rendererModes } from "../renderer/renderer_modes.ts";
 
 // Translate-path: only innerText: translate-path-title: inner text by adding .title and title by adding .description
 export const settingsHtml = `
@@ -76,6 +77,14 @@ export const settingsHtml = `
         </div>
         
         <div class='switch_label'>
+            <label for='preset_names_toggler' translate-path-title='locale.settings.rendererSettings.toggleDrawingPresetNames'></label>
+            <label class='switch'>
+                <input type='checkbox' id='preset_names_toggler'>
+                <span class='switch_slider'></span>
+            </label>
+        </div>
+        
+        <div class='switch_label'>
             <label for='note_toggler' translate-path-title='locale.settings.rendererSettings.toggleNotesRendering'></label>
             <label class='switch'>
                 <input type='checkbox' checked id='note_toggler'>
@@ -95,6 +104,14 @@ export const settingsHtml = `
             <label for='visual_pitch_toggler' translate-path-title='locale.settings.rendererSettings.toggleDrawingVisualPitch'></label>
             <label class='switch'>
                 <input type='checkbox' checked id='visual_pitch_toggler'>
+                <span class='switch_slider'></span>
+            </label>
+        </div>
+        
+        <div class='switch_label'>
+            <label for='dot_display_toggler' translate-path-title='locale.settings.rendererSettings.toggleRenderingDotDisplay'></label>
+            <label class='switch'>
+                <input type='checkbox' checked id='dot_display_toggler'>
                 <span class='switch_slider'></span>
             </label>
         </div>
@@ -127,6 +144,14 @@ export const settingsHtml = `
             <label translate-path-title='locale.settings.keyboardSettings.show'></label>
             <label class='switch'>
                 <input type='checkbox' checked id='keyboard_show'>
+                <span class='switch_slider'></span>
+            </label>
+        </div>
+        
+        <div class='switch_label'>
+            <label translate-path-title='locale.settings.keyboardSettings.forceMaxVelocity'></label>
+            <label class='switch'>
+                <input type='checkbox' id='keyboard_force_max_velocity'>
                 <span class='switch_slider'></span>
             </label>
         </div>
@@ -181,9 +206,14 @@ export const settingsHtml = `
             <option value='right' translate-path='locale.settings.interfaceSettings.layoutDirection.values.rightToLeft'></option>
         </select>
         
-        <h3><a href='https://github.com/spessasus/SpessaSynth/wiki/How-To-Use-App' target='_blank' translate-path-title='locale.synthesizerController.helpButton'></a></h3>
+        <label for='background_file_upload' class='file_upload' translate-path-title='locale.settings.interfaceSettings.backgroundImage'></label>
+        <input type="file" accept="image/*" id='background_file_upload'/>
+        
+        
+        <h3><a id='reload_synth'></></h3>
         
         <h4 class='hover_reminder' translate-path-title='locale.settings.interfaceSettings.reminder'></h4>
+        <h4><a href='https://github.com/spessasus/SpessaSynth/wiki/How-To-Use-App' target='_blank' translate-path-title='locale.synthesizerController.helpButton'></a></h4>
     </div>
 </div>
 `;

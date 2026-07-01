@@ -1,5 +1,7 @@
-import { FONT_SIZE, Renderer, rendererModes } from "./renderer.js";
+import { FONT_SIZE, PRESET_NAMES_FONT_SIZE, Renderer } from "./renderer.js";
 import { drawNotes } from "./draw_notes.js";
+import { isMobile } from "../utils/is_mobile.ts";
+import { rendererModes } from "./renderer_modes.ts";
 
 let hasRenderedNoVoices = false;
 
@@ -11,7 +13,7 @@ let hasRenderedNoVoices = false;
 export function render(this: Renderer, auto = true, force = false) {
     const nothingToDo =
         (this.seq === undefined || this?.seq?.paused) &&
-        this.synth.voicesAmount === 0 &&
+        this.synth.voiceCount === 0 &&
         this.rendererMode === rendererModes.waveformsMode &&
         !force;
     let forceStraight = false;
@@ -40,10 +42,58 @@ export function render(this: Renderer, auto = true, force = false) {
         );
     }
 
-    const highPerf = this.synth.getMasterParameter("blackMIDIMode");
+    // Draw dot matrix
+    if (this.renderDotDisplay && this.showDisplayMatrix !== null) {
+        this.drawDotMatrix();
+    }
+
+    const highPerf = this.synth.systemParameters.blackMIDIMode;
     if (!highPerf) {
         // Draw the individual analyzers
         this.renderWaveforms(forceStraight);
+        // Draw preset names
+        if (
+            this.showPresetNames &&
+            this.rendererMode !== rendererModes.spectrumSingleMode &&
+            this.rendererMode !== rendererModes.none
+        ) {
+            const waveWidth = this.canvas.width / 4;
+            const waveHeight = this.canvas.height / 4;
+            // Setup font
+            // Scale down on mobile
+            const fontSize =
+                PRESET_NAMES_FONT_SIZE /
+                (isMobile ? window.devicePixelRatio : 1);
+            this.drawingContext.textBaseline = "top";
+            this.drawingContext.textAlign = "start";
+            this.drawingContext.font = `${fontSize}px monospace`;
+            this.drawingContext.fillStyle = "white";
+            const names = this.programTracker.presetNames;
+            const used = this.programTracker.usedChannels;
+            const usedParts = this.programTracker.usedParts;
+            // For every waveform
+            for (let part = 0; part < 16; part++) {
+                const x = part % 4;
+                const y = Math.floor(part / 4);
+                const relativeX = waveWidth * x;
+                let relativeY = waveHeight * y;
+                // Check for every channel that uses this waveform
+                for (let chan = part; chan < names.length; chan += 16) {
+                    // If used (by MIDI file) or currently active part (by something external)
+                    if (
+                        used.has(chan) ||
+                        (this.voicesPlaying[part] && !usedParts.has(part))
+                    ) {
+                        this.drawingContext.fillText(
+                            names[chan],
+                            relativeX,
+                            relativeY
+                        );
+                        relativeY += fontSize;
+                    }
+                }
+            }
+        }
     }
 
     if (this.renderNotes && this.noteTimes) {
@@ -64,12 +114,12 @@ export function render(this: Renderer, auto = true, force = false) {
     const fps = 1000 / timeSinceLastFrame;
 
     // Draw note count and fps
-    this.drawingContext.textBaseline = "hanging";
+    this.drawingContext.textBaseline = "top";
     this.drawingContext.textAlign = "end";
     this.drawingContext.font = `${FONT_SIZE}px monospace`;
     this.drawingContext.fillStyle = "white";
 
-    let y = 5;
+    let y = 0;
     // App version
     this.drawingContext.fillText(this.version, this.canvas.width, y);
     y += FONT_SIZE;
@@ -86,17 +136,34 @@ export function render(this: Renderer, auto = true, force = false) {
         this.canvas.width,
         y
     );
+    if (this.showKeyboardMode) {
+        y += FONT_SIZE;
+        this.drawingContext.fillText(
+            this.keyboardModeText,
+            this.canvas.width,
+            y
+        );
+    }
 
     // Left side
-    y = 5;
+    let yIncrement;
+
+    if (this.showPresetNames) {
+        yIncrement = -FONT_SIZE;
+        this.drawingContext.textBaseline = "bottom";
+        y = this.canvas.height;
+    } else {
+        yIncrement = FONT_SIZE;
+        y = 0;
+    }
     this.drawingContext.textAlign = "start";
     // Engine mode
     this.drawingContext.fillText(
-        this.workerMode ? "WORKER (CHROMIUM) MODE" : "WORKLET MODE",
+        this.workerMode ? "WORKER (CHROMIUM) MODE" : "WORKLET (FIREFOX) MODE",
         0,
         y
     );
-    y += FONT_SIZE;
+    y += yIncrement;
 
     // Draw time signature and tempo (if note times are available)
     if (this.seq.midiData) {
@@ -107,7 +174,7 @@ export function render(this: Renderer, auto = true, force = false) {
             0,
             y
         );
-        y += FONT_SIZE;
+        y += yIncrement;
         this.drawingContext.fillText(this.currentTimeSignature, 0, y);
     }
 

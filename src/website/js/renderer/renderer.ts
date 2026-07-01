@@ -1,13 +1,29 @@
 import { calculateRGB, RGBAOpacity } from "../utils/calculate_rgb.js";
 import { render } from "./render.js";
 import { computeNotePositions } from "./compute_note_positions.js";
-import { connectChannelAnalysers, disconnectChannelAnalysers, updateFftSize } from "./channel_analysers.js";
-import { renderBigFft, renderSingleFft, renderSingleWaveform, renderWaveforms } from "./render_waveforms.js";
-import { consoleColors } from "../utils/console_colors.js";
-import { BasicMIDI, midiMessageTypes } from "spessasynth_core";
+import {
+    connectChannelAnalysers,
+    disconnectChannelAnalysers,
+    updateFftSize
+} from "./channel_analysers.js";
+import {
+    renderBigFft,
+    renderSingleFft,
+    renderSingleWaveform,
+    renderWaveforms
+} from "./render_waveforms.js";
+import {
+    BasicMIDI,
+    MIDIMessageTypes,
+    type MIDISystem,
+    SpessaSynthCoreUtils
+} from "spessasynth_core";
 import type { Sequencer } from "spessasynth_lib";
-import type { LocaleManager } from "../locale/locale_manager.ts";
+import { type LocaleManager } from "../manager/locale_manager.ts";
 import type { Synthesizer } from "../utils/synthesizer.ts";
+import { drawDotMatrix } from "./draw_dot_matrix.ts";
+import { ProgramTracker } from "./program_tracker.ts";
+import { type RendererMode, rendererModes } from "./renderer_modes.ts";
 
 /**
  * Renderer.js
@@ -25,19 +41,10 @@ export interface NoteToRender {
     velocity: number;
 }
 
-export const rendererModes = {
-    waveformsMode: 0,
-    spectrumSplitMode: 1,
-    spectrumSingleMode: 2,
-    filledWaveformsMode: 4,
-    none: 5
-};
-
-export type RendererMode = (typeof rendererModes)[keyof typeof rendererModes];
+const DISPLAY_MATRIX_TIMEOUT = 2880;
 
 // Analysers
 const CHANNEL_ANALYSER_FFT = 1024;
-const DRUMS_ANALYSER_FFT = 4096;
 export const ANALYSER_SMOOTHING = 0.4;
 const WAVE_MULTIPLIER = 2;
 const ANALYSER_STROKE = 2;
@@ -48,39 +55,59 @@ const GRADIENT_DARKEN = 0.5;
 export const STROKE_THICKNESS = 1;
 export const NOTE_MARGIN = 1;
 export const FONT_SIZE = 12;
+export const PRESET_NAMES_FONT_SIZE = 16;
 export const PRESSED_EFFECT_TIME = 0.6;
 
 // Limits
 export const MIN_NOTE_HEIGHT_PX = 2;
-export const MAX_NOTES = 81572;
+export const MAX_NOTES = 81_572;
 
 export class Renderer {
     /**
      * Called after a frame is rendered
      */
     public onRender?: () => unknown;
-
-    public noteFallingTimeMs = 1000;
-    public noteAfterTriggerTimeMs = 0;
+    // Params
+    /**
+     * Milliseconds
+     */
+    public noteFallingTime = 1000;
+    /**
+     * Milliseconds
+     */
+    public noteAfterTriggerTime = 0;
     public lineThickness = ANALYSER_STROKE;
     public waveMultiplier = WAVE_MULTIPLIER;
-    public currentTimeSignature = "4/4";
-    public holdPedalIsDownText = "";
     public rendererMode: RendererMode = rendererModes.waveformsMode;
+    // Toggles
     public showHoldPedal = false;
+    public showKeyboardMode = false;
     public renderNotes = true;
     public drawActiveNotes = true;
     public showVisualPitch = true;
+    public renderDotDisplay = true;
+    public sideways = false;
+    public renderChannels = new Array<boolean>(16).fill(true);
     // Fft config
     public exponentialGain = true;
     public logarithmicFrequency = true;
     public dynamicGain = false;
-    public renderChannels = Array<boolean>(16).fill(true);
+    // Offsets
     public timeOffset = 0;
     public notesOnScreen = 0;
-    public sideways = false;
+    // Strings
+    public currentTimeSignature = "4/4";
+    public holdPedalIsDownText = "";
+    public keyboardModeText = "";
+    public efxText = "EFX";
     public readonly updateFftSize = updateFftSize.bind(this);
-    public readonly render = render.bind(this);
+    /**
+     * For XG/GS display matrix
+     */
+    public readonly displayMatrix = Array.from({ length: 16 }, () =>
+        new Array<boolean>(16).fill(false)
+    );
+    protected readonly render = render.bind(this);
     protected version: string;
     protected _notesFall = true;
     protected canvas: HTMLCanvasElement;
@@ -88,6 +115,9 @@ export class Renderer {
     protected plainColors: string[];
     protected synth: Synthesizer;
     protected seq: Sequencer;
+    protected readonly programTracker;
+    protected readonly sampleBuffer = new Float32Array(32_768); // Max allowed by AnalyserNode
+    protected readonly voicesPlaying = new Array<boolean>(16).fill(false);
     protected channelAnalysers: AnalyserNode[] = [];
     protected bigAnalyser: AnalyserNode;
     protected channelColors: CanvasGradient[] = [];
@@ -111,11 +141,15 @@ export class Renderer {
     protected readonly disconnectChannelAnalysers =
         disconnectChannelAnalysers.bind(this);
     protected readonly renderWaveforms = renderWaveforms.bind(this);
+    protected readonly drawDotMatrix = drawDotMatrix.bind(this);
     protected readonly renderSingleWaveform = renderSingleWaveform.bind(this);
     protected readonly renderSingleFft = renderSingleFft.bind(this);
     protected readonly renderBigFft = renderBigFft.bind(this);
     protected readonly inputNode: AudioNode;
     protected readonly workerMode: boolean;
+    protected readonly sampleRateFactor: number;
+    protected showDisplayMatrix: MIDISystem | null = null;
+    private displayMatrixTimeout = 0;
 
     /**
      * Creates a new midi renderer for rendering notes visually.
@@ -132,17 +166,25 @@ export class Renderer {
     ) {
         this.synth = synth;
         this.seq = seq;
+        this.programTracker = new ProgramTracker(synth, seq);
         this.version = "v" + version;
         this.inputNode = inputNode;
         this.canvas = canvas;
         this.plainColors = channelColors;
         this.workerMode = workletMode;
+        // All data has been adjusted for 44.1kHz, correct it here
+        this.sampleRateFactor = this.synth.context.sampleRate / 44_100;
 
         // Will be updated by locale manager
         locale.bindObjectProperty(
             this,
             "holdPedalIsDownText",
             "locale.synthesizerController.holdPedalDown"
+        );
+        locale.bindObjectProperty(
+            this,
+            "keyboardModeText",
+            "locale.synthesizerController.keyboardMode"
         );
 
         const ctx = this.canvas.getContext("2d");
@@ -156,25 +198,17 @@ export class Renderer {
 
         // Analysers
         this.bigAnalyser = new AnalyserNode(synth.context, {
-            fftSize: this._normalAnalyserFft,
+            fftSize: this._analyserFftSize,
             smoothingTimeConstant: ANALYSER_SMOOTHING
         });
-        for (let i = 0; i < synth.channelsAmount; i++) {
+        for (let i = 0; i < synth.channelCount; i++) {
             // Create the analyzer
             const analyser = new AnalyserNode(synth.context, {
-                fftSize: this._normalAnalyserFft,
+                fftSize: this._analyserFftSize,
                 smoothingTimeConstant: ANALYSER_SMOOTHING
             });
             this.channelAnalysers.push(analyser);
         }
-
-        synth.eventHandler.addEvent(
-            "muteChannel",
-            "renderer-mute-channel",
-            (eventData) => {
-                this.renderChannels[eventData.channel] = !eventData.isMuted;
-            }
-        );
         this.updateFftSize();
         this.connectChannelAnalysers();
 
@@ -194,16 +228,11 @@ export class Renderer {
                 }
                 this.calculateNoteTimes(await this.seq.getMIDI());
                 this.resetIndexes();
-                if (mid.rmidiInfo?.picture !== undefined) {
-                    const blob = new Blob([mid.rmidiInfo.picture.buffer]);
-                    const url = URL.createObjectURL(blob);
-                    const opacity = this.canvas.classList.contains("light_mode")
-                        ? 0
-                        : 0.9;
-                    this.canvas.style.background = `linear-gradient(rgba(0, 0, 0, ${opacity}), rgba(0, 0, 0, ${opacity})), center center / cover url("${url}")`;
-                } else {
-                    this.canvas.style.background = "";
-                }
+                this.setBackground(
+                    mid.rmidiInfo?.picture
+                        ? new Blob([mid.rmidiInfo.picture])
+                        : undefined
+                );
             }
         );
 
@@ -212,11 +241,22 @@ export class Renderer {
             "renderer-meta-event",
             (ev) => {
                 const event = ev.event;
-                if (event.statusByte === midiMessageTypes.timeSignature) {
+                if (event.statusByte === MIDIMessageTypes.timeSignature) {
                     this.currentTimeSignature = `${event.data[0]}/${Math.pow(2, event.data[1])}`;
                 }
             }
         );
+    }
+
+    protected _showPresetNames = true;
+
+    public get showPresetNames(): boolean {
+        return this._showPresetNames;
+    }
+
+    public set showPresetNames(value: boolean) {
+        this._showPresetNames = value;
+        this.renderOneFrame();
     }
 
     protected _renderBool = true;
@@ -236,8 +276,6 @@ export class Renderer {
 
     protected _stabilizeWaveforms = true;
 
-    // noinspection JSUnusedGlobalSymbols
-
     public get stabilizeWaveforms() {
         return this._stabilizeWaveforms;
     }
@@ -246,6 +284,8 @@ export class Renderer {
         this._stabilizeWaveforms = val;
         this.updateFftSize();
     }
+
+    // noinspection JSUnusedGlobalSymbols
 
     protected _keyRange = {
         min: 0,
@@ -277,31 +317,52 @@ export class Renderer {
         setTimeout(this.updateSize.bind(this), 100);
     }
 
-    protected _normalAnalyserFft = CHANNEL_ANALYSER_FFT;
+    protected _analyserFftSize = CHANNEL_ANALYSER_FFT;
 
-    public get normalAnalyserFft() {
-        return this._normalAnalyserFft;
+    public get analyserFftSize() {
+        return this._analyserFftSize;
     }
 
-    public set normalAnalyserFft(value) {
-        this._normalAnalyserFft = value;
-        this.updateFftSize();
-    }
-
-    protected _drumAnalyserFft = DRUMS_ANALYSER_FFT;
-
-    // noinspection JSUnusedGlobalSymbols
-    public get drumAnalyserFft() {
-        return this._drumAnalyserFft;
-    }
-
-    public set drumAnalyserFft(value) {
-        this._drumAnalyserFft = value;
+    public set analyserFftSize(value) {
+        this._analyserFftSize = value;
         this.updateFftSize();
     }
 
     public set direction(val: "down" | "up") {
         this._notesFall = val === "down";
+    }
+
+    public setBackground(image: Blob | undefined) {
+        if (!image) {
+            this.canvas.style.backgroundImage = "";
+            return;
+        }
+        const url = URL.createObjectURL(image);
+        this.canvas.style.backgroundImage = `linear-gradient(rgba(0, 0, 0, var(--opacity)), rgba(0, 0, 0, var(--opacity))), url("${url}")`;
+    }
+
+    public startRendering() {
+        this.render();
+    }
+
+    public renderOneFrame() {
+        this.render(false, true);
+    }
+
+    public clearRendererMatrix() {
+        this.showDisplayMatrix = null;
+    }
+
+    public updateDisplayMatrix(mode: MIDISystem) {
+        this.showDisplayMatrix = mode;
+        clearTimeout(this.displayMatrixTimeout);
+        this.displayMatrixTimeout = window.setTimeout(
+            this.clearRendererMatrix.bind(this),
+            DISPLAY_MATRIX_TIMEOUT
+        );
+        // Many MIDI files do setup in silence, and the animations usually are presented then.
+        // Spessasynth doesn't render if nothing is being played, so this bypasses that.
+        this.renderOneFrame();
     }
 
     public setRendererMode(mode: RendererMode) {
@@ -314,7 +375,7 @@ export class Renderer {
         this.canvas.height = this.canvas.clientHeight;
         this.computeColors();
         this.updateFftSize();
-        this.render(false, true);
+        this.renderOneFrame();
     }
 
     public toggleDarkMode() {
@@ -325,14 +386,14 @@ export class Renderer {
         const MIN_NOTE_TIME = 0.02;
         const times = mid.getNoteTimes(MIN_NOTE_TIME);
         // Special and cool case (triangle.mid)
-        times.forEach((t) => {
+        for (const t of times) {
             if (t.length === 1) {
                 const n = t[0];
                 if (n.length === -1) {
                     n.length = mid.duration;
                 }
             }
-        });
+        }
         this.noteTimes = times.map((t) => {
             return {
                 notes: t,
@@ -341,7 +402,7 @@ export class Renderer {
         });
         console.info(
             `%cFinished loading note times and ready to render the sequence!`,
-            consoleColors.info
+            SpessaSynthCoreUtils.ConsoleColors.info
         );
     }
 
@@ -349,8 +410,10 @@ export class Renderer {
         if (!this.noteTimes) {
             return;
         }
-        this.noteTimes.forEach((n) => (n.renderStartIndex = 0));
-        this.render(false, true);
+        for (const n of this.noteTimes) {
+            n.renderStartIndex = 0;
+        }
+        this.renderOneFrame();
     }
 
     protected computeColors() {

@@ -3,11 +3,26 @@ import fs from "node:fs/promises";
 import * as esbuild from "esbuild";
 import metaUrlPlugin from "@chialab/esbuild-plugin-meta-url";
 import JSZip from "jszip";
+import { INSTALL_INSTRUCTIONS } from "./install_instructions.ts";
+import { fileURLToPath } from "node:url";
+import {
+    LOCAL_EDITION_ZIP_FOLDER_NAME,
+    LOCAL_EDITION_ZIP_NAME
+} from "./local_edition_zip_name.ts";
+
+const print = (t = "") => {
+    console.info(t);
+};
 
 export async function buildSpessaSynth() {
-    const REPO_ROOT = path.resolve(import.meta.dirname, "../..");
+    // Don't use meta.dirname: https://github.com/spessasus/SpessaSynth
+    const REPO_ROOT = path.resolve(
+        path.dirname(fileURLToPath(import.meta.url)),
+        "../.."
+    );
 
-    const WEBSITE_DIR = path.resolve(REPO_ROOT, "src/website");
+    const SERVER_SRC_DIR = path.resolve(REPO_ROOT, "src/server");
+    const WEBSITE_SRC_DIR = path.resolve(REPO_ROOT, "src/website");
     const WORKLET_NAME = "spessasynth_processor.min.js";
     const WORKLET_PATH = path.resolve(
         REPO_ROOT,
@@ -18,12 +33,7 @@ export async function buildSpessaSynth() {
     const DEMO_DIR_SRC = path.resolve(REPO_ROOT, "dist/minified");
     const DEMO_DIR = path.resolve(REPO_ROOT, "dist");
     const LOCAL_DIR = path.resolve(REPO_ROOT, "local-dev");
-    const SERVER_DIR = path.resolve(REPO_ROOT, "server");
-    const OUTPUT_ZIP = "SpessaSynth-LocalEdition.zip";
-
-    const print = (t = "") => {
-        console.info(t);
-    };
+    const SERVER_OUT_DIR = path.resolve(REPO_ROOT, "server");
 
     const printStep = (s: string) => {
         print("\n--------------------------");
@@ -45,11 +55,11 @@ export async function buildSpessaSynth() {
 
     // Html
     await fs.cp(
-        path.resolve(WEBSITE_DIR, "html/demo_index.html"),
+        path.resolve(WEBSITE_SRC_DIR, "html/demo_index.html"),
         path.resolve(DEMO_DIR, "index.html")
     );
     await fs.cp(
-        path.resolve(WEBSITE_DIR, "html/local_edition_index.html"),
+        path.resolve(WEBSITE_SRC_DIR, "html/local_edition_index.html"),
         path.resolve(LOCAL_DIR, "local_edition_index.html")
     );
 
@@ -64,11 +74,11 @@ export async function buildSpessaSynth() {
 
     // Favicon
     await fs.cp(
-        path.resolve(WEBSITE_DIR, "favicon.ico"),
+        path.resolve(WEBSITE_SRC_DIR, "favicon.ico"),
         path.resolve(DEMO_DIR, "favicon.ico")
     );
     await fs.cp(
-        path.resolve(WEBSITE_DIR, "favicon.ico"),
+        path.resolve(WEBSITE_SRC_DIR, "favicon.ico"),
         path.resolve(LOCAL_DIR, "favicon.ico")
     );
 
@@ -85,10 +95,10 @@ export async function buildSpessaSynth() {
 
     printStep("️⚙️  3) Build");
 
-    const demoInput = path.resolve(WEBSITE_DIR, "js/main/demo_main.ts");
-    const localInput = path.resolve(WEBSITE_DIR, "js/main/local_main.ts");
-    const serverInput = path.resolve(WEBSITE_DIR, "server/server.ts");
-    const stylesInput = path.resolve(WEBSITE_DIR, "css/style.css");
+    const demoInput = path.resolve(WEBSITE_SRC_DIR, "js/main/demo_main.ts");
+    const localInput = path.resolve(WEBSITE_SRC_DIR, "js/main/local_main.ts");
+    const serverInput = path.resolve(SERVER_SRC_DIR, "server.ts");
+    const stylesInput = path.resolve(WEBSITE_SRC_DIR, "css/style.css");
 
     const regularOptions: esbuild.BuildOptions = {
         minify: true,
@@ -125,7 +135,7 @@ export async function buildSpessaSynth() {
         entryPoints: [serverInput],
         ...regularOptions,
         platform: "node",
-        outdir: SERVER_DIR,
+        outdir: SERVER_OUT_DIR,
         sourcemap: "linked"
     });
 
@@ -145,9 +155,14 @@ export async function buildSpessaSynth() {
 
     printStep("🗂️  4) Prepare The Local‑Edition Distribution ZIP");
 
-    const ZIP_FOLDER_NAME = `spessasynth-local-edition-${new Date().toISOString().split("T")[0]}`;
     const mainZip = new JSZip();
-    const zip = mainZip.folder(ZIP_FOLDER_NAME);
+    // Install instructions
+    mainZip.file(
+        "INSTALL_INSTRUCTIONS.txt",
+        new TextEncoder().encode(INSTALL_INSTRUCTIONS)
+    );
+
+    const zip = mainZip.folder(LOCAL_EDITION_ZIP_FOLDER_NAME);
     if (zip === null) {
         throw new Error("Error creating the zip file.");
     }
@@ -160,8 +175,8 @@ export async function buildSpessaSynth() {
         try {
             const f = await fs.readFile(p);
             zip.file(name, f);
-        } catch (e) {
-            console.error(e);
+        } catch (error) {
+            console.error(error);
         }
     };
 
@@ -182,7 +197,10 @@ export async function buildSpessaSynth() {
     if (serverFolder === null) {
         throw new Error("Error creating the zip file.");
     }
-    await copyFileToZip(path.resolve(SERVER_DIR, "server.js"), serverFolder);
+    await copyFileToZip(
+        path.resolve(SERVER_OUT_DIR, "server.js"),
+        serverFolder
+    );
 
     // Copy files to the root folder
     await copyFileToZip(path.resolve(REPO_ROOT, "package.json"), zip);
@@ -200,7 +218,7 @@ export async function buildSpessaSynth() {
         soundBankFolder
     );
 
-    const targetZip = path.resolve(DEMO_DIR, OUTPUT_ZIP);
+    const targetZip = path.resolve(DEMO_DIR, LOCAL_EDITION_ZIP_NAME);
     const zippedFile = await mainZip.generateAsync({ type: "nodebuffer" });
     await fs.writeFile(targetZip, zippedFile);
 
@@ -209,5 +227,5 @@ export async function buildSpessaSynth() {
     print(
         " • local/                               ← Local Edition ready for debugging"
     );
-    print(` • dist/${OUTPUT_ZIP}    ← Local‑Edition zip`);
+    print(` • dist/${LOCAL_EDITION_ZIP_NAME}    ← Local‑Edition zip`);
 }

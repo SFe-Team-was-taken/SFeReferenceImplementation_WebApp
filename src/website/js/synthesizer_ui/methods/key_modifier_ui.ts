@@ -2,9 +2,9 @@ import {
     closeNotification,
     showNotification
 } from "../../notification/notification.js";
-import type { LocaleManager } from "../../locale/locale_manager.ts";
+import type { LocaleManager } from "../../manager/locale_manager.ts";
 import type { MIDIKeyboard } from "../../midi_keyboard/midi_keyboard.ts";
-import { type MIDIPatchNamed, MIDIPatchTools } from "spessasynth_core";
+import { type MIDIPatchFull, MIDIPatchTools } from "spessasynth_core";
 import type { Synthesizer } from "../../utils/synthesizer.ts";
 
 const LOCALE_PATH = "locale.synthesizerController.keyModifiers.";
@@ -24,7 +24,7 @@ async function getKey(
                     )
                 }
             ],
-            999999,
+            999_999,
             false,
             locale
         );
@@ -37,28 +37,30 @@ async function getKey(
     });
 }
 
+function getInput(name: string, min: number, max: number, val: number) {
+    return {
+        type: "number",
+        min: min.toString(),
+        max: max.toString(),
+        value: val.toString(),
+        [name]: "true"
+    };
+}
+
 async function doModifyKey(
     synth: Synthesizer,
     locale: LocaleManager,
     keyboard: MIDIKeyboard,
-    presetList: MIDIPatchNamed[]
+    presetList: MIDIPatchFull[]
 ) {
     const key = await getKey(locale, keyboard);
-    const getInput = (name: string, min: number, max: number, val: number) => {
-        return {
-            type: "number",
-            min: min.toString(),
-            max: max.toString(),
-            value: val.toString(),
-            [name]: "true"
-        };
-    };
+
     const presetOptions: Record<string, string> = {
         unchanged: locale.getLocaleString(
             LOCALE_PATH + "modifyKey.preset.unchanged"
         )
     };
-    for (const p of presetList.toSorted((p1, p2) => {
+    for (const p of presetList.slice().sort((p1, p2) => {
         if (p1.name < p2.name) {
             return -1;
         }
@@ -96,7 +98,7 @@ async function doModifyKey(
                 attributes: getInput(
                     "chan",
                     0,
-                    synth.channelsAmount - 1,
+                    synth.channelCount - 1,
                     keyboard.channel
                 )
             },
@@ -125,7 +127,7 @@ async function doModifyKey(
                         if (!e) {
                             return null;
                         }
-                        return parseInt((e as HTMLInputElement).value);
+                        return Number.parseInt((e as HTMLInputElement).value);
                     };
                     const channel = getVal("input[chan]") ?? -1;
                     const velocity = getVal("input[vel]") ?? -1;
@@ -164,7 +166,7 @@ async function doModifyKey(
                 }
             }
         ],
-        99999,
+        99_999,
         true,
         locale
     );
@@ -214,7 +216,7 @@ async function doRemoveModification(
                     type: "number",
                     value: keyboard.channel.toString(),
                     min: "0",
-                    max: (synth.channelsAmount - 1).toString()
+                    max: (synth.channelCount - 1).toString()
                 }
             },
             {
@@ -223,13 +225,14 @@ async function doRemoveModification(
                 onClick: (n) => {
                     const input = n.div.querySelector("input[chan]")!;
                     const channel =
-                        parseInt((input as HTMLInputElement).value) ?? -1;
+                        Number.parseInt((input as HTMLInputElement).value) ??
+                        -1;
                     synth.keyModifierManager.deleteModifier(channel, key);
                     closeNotification(n.id);
                 }
             }
         ],
-        99999,
+        99_999,
         true,
         locale
     );
@@ -239,7 +242,7 @@ export function startKeyModifiersMenu(
     synth: Synthesizer,
     locale: LocaleManager,
     keyboard: MIDIKeyboard,
-    presetList: MIDIPatchNamed[]
+    presetList: MIDIPatchFull[]
 ) {
     showNotification(
         locale.getLocaleString(LOCALE_PATH + "mainTitle"),
@@ -307,14 +310,14 @@ export function startKeyModifiersMenu(
                                 }
                             }
                         ],
-                        99999,
+                        99_999,
                         true,
                         locale
                     );
                 }
             }
         ],
-        9999999,
+        9_999_999,
         true,
         locale
     );
