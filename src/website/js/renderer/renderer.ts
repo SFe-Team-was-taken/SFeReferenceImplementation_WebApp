@@ -54,7 +54,7 @@ const DARKER_MULTIPLIER = 0.6;
 const GRADIENT_DARKEN = 0.5;
 export const STROKE_THICKNESS = 1;
 export const NOTE_MARGIN = 1;
-export const FONT_SIZE = 12;
+export const FONT_SIZE = 13;
 export const PRESET_NAMES_FONT_SIZE = 16;
 export const PRESSED_EFFECT_TIME = 0.6;
 
@@ -99,7 +99,7 @@ export class Renderer {
     public currentTimeSignature = "4/4";
     public holdPedalIsDownText = "";
     public keyboardModeText = "";
-    public efxText = "EFX";
+    public efxText = "Thru";
     public readonly updateFftSize = updateFftSize.bind(this);
     /**
      * For XG/GS display matrix
