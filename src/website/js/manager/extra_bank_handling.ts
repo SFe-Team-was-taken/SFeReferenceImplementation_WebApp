@@ -34,7 +34,7 @@ export function prepareExtraBankUpload(this: Manager) {
                     attributes: {
                         value: "",
                         name: "bank",
-                        accept: ".dls,.sf2,.sf3,.sfogg"
+                        accept: ".dls,.sf2,.sf3,.sf4,.sfogg"
                     }
                 },
                 {

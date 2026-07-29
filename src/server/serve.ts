@@ -78,6 +78,7 @@ export function serveStaticFile(
         filePath = questionMark[0];
     }
     if (
+        filePath.toLowerCase().endsWith(".sf4") ||
         filePath.toLowerCase().endsWith(".sf3") ||
         filePath.toLowerCase().endsWith(".sf2") ||
         filePath.toLowerCase().endsWith(".sfogg") ||
